@@ -1,0 +1,23 @@
+{
+  "output": {
+    "filePath": "repomix-output.xml"
+  },
+  "ignore": {
+    "useGitignore": true,
+    "customPatterns": [
+      ".kiro/specs/**",
+      "repomix-output.xml",
+      "repomix.config.json",
+      "package-lock.json",
+      "tsconfig.node.tsbuildinfo",
+      "*.yml",
+      "*.yaml",
+      "resources/**",
+      ".vscode/**",
+      ".editorconfig",
+      ".prettierignore",
+      ".prettierrc.yaml",
+      "eslint.config.mjs"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Electron</title>
+    <!-- CSP is enforced via session.webRequest.onHeadersReceived in main process (APP-SEC-01).
+         The meta tag is intentionally omitted to avoid conflicting with the header-based policy
+         which correctly handles dev (Vite HMR) vs production differences. -->
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
