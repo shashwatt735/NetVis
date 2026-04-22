@@ -1,11 +1,33 @@
-node_modules
-dist
-out
-build
-.DS_Store
-.eslintcache
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+out/
+build/
+
+# Logs and diagnostic files
 *.log*
+*.err
+*.out
+
+# dotenv environment variables file
+.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Electron specific
+electron-builder-effective-config.yaml
+
+# TypeScript
 *.tsbuildinfo
+
+# ESLint cache
+.eslintcache
+
+# Custom project files
 repomix-output.xml
 .kiro/**
 .vscode/**
