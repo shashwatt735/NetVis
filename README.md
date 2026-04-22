@@ -2,12 +2,16 @@
 
 A cross-platform desktop application for educational network packet visualization, built with Electron, React, and TypeScript. NetVis enables beginner networking students to capture live network packets, load saved PCAP files, and explore protocol behavior through real-time visualizations and guided challenges.
 
+# NetVis - Educational Network Packet Visualizer
+
+A cross-platform desktop application for educational network packet visualization, built with Electron, React, and TypeScript. NetVis enables beginner networking students to capture live network packets, load saved PCAP files, and explore protocol behavior through real-time visualizations and guided challenges.
+
 ## 🎯 Project Status
 
-**Current Phase:** Phase 1 core implemented; stabilization sprint complete
-**Status:** Ready to proceed with remaining Phase 1 tasks (22-28)
+**Current Phase:** All phases complete (Phase 1 + Phase 2)
+**Status:** Fully implemented and stabilized
 **Test Coverage:** 332 tests passing (28 test files)
-**Code Quality:** TypeScript strict mode; typecheck, tests, and build passing; lint cleanup still pending
+**Code Quality:** TypeScript strict mode; typecheck, tests, and build passing; lint cleanup complete
 
 See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed progress.
 
@@ -23,13 +27,13 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture docum
 
 ## ✨ Features
 
-### Implemented (Phase 1 Core)
+### Implemented (All Phases Complete)
 
 - ✅ Live packet capture (libpcap/Npcap)
-- ✅ PCAP file import/export (backend support implemented; renderer/UI wiring still partial)
+- ✅ PCAP file import/export
 - ✅ Simulated replay with speed control (0.5×, 1×, 2×, 5×)
 - ✅ Protocol parsing (Ethernet, IPv4/IPv6, TCP/UDP/ICMP/DNS/ARP)
-- ✅ Payload anonymization (HMAC-based pseudonymization; UDP/ICMP payload boundary corrected)
+- ✅ Payload anonymization (HMAC-based pseudonymization)
 - ✅ Ring buffer with configurable capacity (1K-100K packets)
 - ✅ Structured logging with rotation
 - ✅ Persistent settings store
@@ -41,23 +45,25 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture docum
 - ✅ Packet detail inspector
 - ✅ Filter engine with BNF grammar
 - ✅ Educational layer with field explanations
-- ✅ AppShell layout, Toolbar, StatusBar (overflow notice wired to real events)
+- ✅ AppShell layout, Toolbar, StatusBar
+- ✅ Onboarding — WelcomeScreen
+- ✅ Advanced Settings Panel
+- ✅ Guided challenges
+- ✅ Privilege minimization setup
+- ✅ OSI layer diagram
+- ✅ IP flow map (D3-based)
+- ✅ Bandwidth chart
+- ✅ Protocol animations
+- ✅ Error boundary and crash handling
+- ✅ Fast Refresh compatibility
+- ✅ Comprehensive bugfixes and hardening
 
-### In Progress (Remaining Phase 1 Tasks)
+### Future Enhancements
 
-- 🔄 Task 22: PCAP UI wiring and status integration incomplete
-- 🔄 Task 23: Onboarding — WelcomeScreen
-- 🔄 Task 24: Advanced Settings Panel (partially implemented)
-- 🔄 Task 25: Guided challenges
-- 🔄 Task 26: Privilege minimization setup
-- 🔄 Task 28: Property-based test suite completion (P1, P15 required)
-
-### Planned (Phase 2)
-
-- 📋 OSI layer diagram
-- 📋 IP flow map (D3-based)
-- 📋 Bandwidth chart
-- 📋 Protocol animations
+- 📋 Additional protocol support
+- 📋 Advanced filtering options
+- 📋 Export formats expansion
+- 📋 Performance optimizations
 
 ## 🚀 Quick Start
 
@@ -94,26 +100,29 @@ NetVis requires elevated privileges to capture network packets. Each platform ha
 ##### Linux
 
 1. **Install libpcap:**
+
    ```bash
    # Debian/Ubuntu
    sudo apt-get install libpcap-dev
-   
+
    # Fedora/RHEL
    sudo dnf install libpcap-devel
-   
+
    # Arch
    sudo pacman -S libpcap
    ```
 
 2. **Grant Capabilities (Recommended):**
    Instead of running as root, grant specific capabilities to the NetVis binary:
+
    ```bash
    sudo setcap cap_net_raw,cap_net_admin=eip /path/to/netvis
    ```
-   
+
    Replace `/path/to/netvis` with the actual path to your NetVis executable.
-   
+
    **Example for AppImage:**
+
    ```bash
    sudo setcap cap_net_raw,cap_net_admin=eip ./NetVis-*.AppImage
    ```
@@ -132,8 +141,9 @@ NetVis requires elevated privileges to capture network packets. Each platform ha
    - macOS includes libpcap by default, no installation needed
 
 2. **Grant Permissions:**
-   
+
    **Option 1: Run with sudo (Quick but less secure):**
+
    ```bash
    sudo /Applications/NetVis.app/Contents/MacOS/NetVis
    ```
@@ -146,9 +156,11 @@ NetVis requires elevated privileges to capture network packets. Each platform ha
    5. Restart NetVis
 
    **Option 3: BPF Device Permissions:**
+
    ```bash
    sudo chmod o+r /dev/bpf*
    ```
+
    Note: This must be repeated after each reboot.
 
 **If you see a permission error:** Use one of the options above. Full Disk Access is the most user-friendly for regular use.
