@@ -91,9 +91,9 @@ export interface NetworkInterface {
 
 export type CaptureStatus =
   | { state: 'idle' }
-  | { state: 'active'; iface: string; startedAt: number; pps: number }
-  | { state: 'file'; path: string; pps: number }
-  | { state: 'simulated'; path: string; speed: SpeedMultiplier; pps: number }
+  | { state: 'active'; iface: string; startedAt: number }
+  | { state: 'file'; path: string }
+  | { state: 'simulated'; path: string; speed: SpeedMultiplier }
   | { state: 'error'; message: string; platformHint?: string }
   | { state: 'stopped' }
 
@@ -175,13 +175,19 @@ export const DEFAULT_SETTINGS: Settings = {
 // ─── Worker message protocol ──────────────────────────────────────────────────
 
 export type WorkerInMessage =
-  | { type: 'start-live'; iface: string }
-  | { type: 'start-file'; filePath: string }
-  | { type: 'start-simulated'; filePath: string; speed: SpeedMultiplier }
-  | { type: 'stop' }
+  | { type: 'start-live'; iface: string; requestId: string }
+  | { type: 'start-file'; filePath: string; requestId: string }
+  | { type: 'start-simulated'; filePath: string; speed: SpeedMultiplier; requestId: string }
+  | { type: 'stop'; requestId: string }
 
 export type WorkerOutMessage =
-  | { type: 'packet-batch'; packets: AnonPacket[] }
+  // Worker sends ParsedPacket[]; CaptureEngine.IpcBatcher anonymizes before sending to renderer
+  | { type: 'packet-batch'; packets: ParsedPacket[] }
   | { type: 'stopped' }
   | { type: 'error'; error: CaptureError }
   | { type: 'metrics'; truncatedDropCount: number }
+  // Command acknowledgment — BUGFIX-01
+  | { type: 'command-ok'; requestId: string }
+  | { type: 'command-error'; requestId: string; error: CaptureError }
+  // Long-running operation completion (file streaming end) — BUGFIX-01 / BUGFIX-04
+  | { type: 'command-complete'; requestId: string }

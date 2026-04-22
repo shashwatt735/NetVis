@@ -1,0 +1,22 @@
+{
+    "extends": "./tsconfig.node.json",
+    "include": [
+        "src/__tests__/main/**/*",
+        "src/main/**/*",
+        "src/shared/**/*",
+        "src/preload/**/*"
+    ],
+    "exclude": [
+        "src/main/index.ts"
+    ],
+    "compilerOptions": {
+        "composite": false,
+        "noEmit": true,
+        "types": [
+            "node",
+            "vitest/globals"
+        ],
+        "noUnusedLocals": false,
+        "noUnusedParameters": false
+    }
+}

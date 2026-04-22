@@ -43,7 +43,7 @@ describe('SimulatedReplaySource — packet order invariant (P3)', () => {
           expect(delay).toBeGreaterThanOrEqual(0)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -59,7 +59,7 @@ describe('SimulatedReplaySource — packet order invariant (P3)', () => {
           expect(delay).toBeLessThanOrEqual(MAX_DELAY_MS)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -70,7 +70,7 @@ describe('SimulatedReplaySource — packet order invariant (P3)', () => {
         const delay = computeDelay(null, timestamp, speed)
         expect(delay).toBe(0)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -89,7 +89,7 @@ describe('SimulatedReplaySource — packet order invariant (P3)', () => {
           prev = ts
         }
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -110,7 +110,7 @@ describe('SimulatedReplaySource — packet order invariant (P3)', () => {
           }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 })

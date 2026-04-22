@@ -1,7 +1,11 @@
 node_modules
 dist
 out
+build
 .DS_Store
 .eslintcache
 *.log*
-build
+*.tsbuildinfo
+repomix-output.xml
+.kiro/**
+.vscode/**

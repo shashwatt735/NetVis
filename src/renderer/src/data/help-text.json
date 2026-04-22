@@ -1,0 +1,50 @@
+{
+  "filter-bar": {
+    "label": "Packet Filter",
+    "description": "Type a filter expression to show only matching packets. Supports fields like proto, src, dst, port, and len with operators ==, !=, >, <. Combine with AND / OR / NOT. Example: proto == TCP AND port == 443"
+  },
+  "interface-selector": {
+    "label": "Network Interface",
+    "description": "Choose which network adapter to capture traffic from. Green dot means the interface is currently active. Disabled during an active capture session."
+  },
+  "buffer-capacity": {
+    "label": "Buffer Capacity",
+    "description": "Maximum number of packets held in memory at once. When the buffer is full, the oldest packet is dropped to make room for the newest. Range: 1,000 – 100,000 packets. Default: 10,000."
+  },
+  "simulated-speed": {
+    "label": "Replay Speed",
+    "description": "Controls how fast a PCAP file is replayed in Simulated mode. 1× plays at the original capture speed. 0.5× is half speed (easier to follow); 5× is five times faster. Inter-packet delays are capped at 2 seconds."
+  },
+  "theme-toggle": {
+    "label": "Color Theme",
+    "description": "Switch between light and dark mode. By default, NetVis follows your operating system's color scheme preference."
+  },
+  "start-capture": {
+    "label": "Start Capture",
+    "description": "Begin capturing live packets on the selected network interface. Requires an interface to be selected first. On Linux, the binary needs cap_net_raw capability; on Windows, Npcap must be installed."
+  },
+  "stop-capture": {
+    "label": "Stop Capture",
+    "description": "Stop the active capture session. Packets already in the buffer are retained until you clear the buffer or start a new session."
+  },
+  "simulated-capture": {
+    "label": "Simulated Capture",
+    "description": "Load a PCAP file and replay its packets into the buffer at a configurable speed. Useful in environments where live network capture is unavailable or restricted."
+  },
+  "export-pcap": {
+    "label": "Export PCAP",
+    "description": "Save all packets currently in the buffer to a .pcap file. The file can be opened in Wireshark or other packet analysis tools."
+  },
+  "import-pcap": {
+    "label": "Import PCAP",
+    "description": "Load a .pcap or .pcapng file into the buffer for offline analysis. Files up to 100 MB are supported."
+  },
+  "reduced-motion": {
+    "label": "Reduce Motion",
+    "description": "Disable all animations and transitions in the interface. Useful if you find motion distracting or if you have a vestibular disorder. This setting overrides the operating system preference."
+  },
+  "open-log-folder": {
+    "label": "Open Log Folder",
+    "description": "Opens the folder containing NetVis diagnostic log files in your system file explorer. Logs are useful for troubleshooting capture errors or reporting bugs."
+  }
+}

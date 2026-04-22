@@ -1,27 +1,33 @@
 # Requirements Document
 
+**Last Modified:** 2026-04-22
+
 ## Introduction
 
-NetVis is a cross-platform desktop application (Windows, Linux, macOS) built with Electron, React, and TypeScript. It enables beginner networking students to capture live network packets, load saved PCAP files, and explore protocol behavior through real-time visualizations and an educational layer. The application parses Ethernet, IP, TCP, UDP, ICMP, and DNS protocols, provides text-based filtering, anonymizes sensitive payload data by default, and guides learners through contextual explanations and structured challenges.
+NetVis is a cross-platform desktop application built with Electron, React, and TypeScript. It enables beginner networking students to capture live network packets, load saved PCAP files, and explore protocol behavior through real-time visualizations and an educational layer. The application parses Ethernet, IPv4, IPv6, TCP, UDP, ICMP, DNS, and ARP protocols, provides text-based filtering, anonymizes sensitive payload data by default, and guides learners through contextual explanations and structured challenges.
+
+**Platform Support:** Windows (requires Npcap), Linux (requires libpcap + capabilities), and macOS (requires libpcap, built-in). Each platform has distinct dependency and permission requirements; the application does not abstract these differences.
 
 ---
 
 ## Glossary
 
 - **Application**: The NetVis Electron desktop process as a whole.
-- **Capture_Engine**: The main-process component responsible for interfacing with libpcap/Npcap to capture live packets.
+- **Capture_Engine**: The main-process orchestration component responsible for capture lifecycle management, worker coordination, and privileged-domain delivery of parsed packets into the Packet_Buffer.
 - **Packet_Buffer**: The in-memory ring buffer that holds captured or loaded packets up to a configurable maximum size.
 - **Parser**: The component that decodes raw packet bytes into structured protocol fields.
 - **Pretty_Printer**: The component that serializes a structured Packet back into a human-readable or PCAP-compatible representation.
 - **Filter_Engine**: The component that evaluates a filter expression against each packet to determine visibility.
-- **Filter_Grammar**: The formal BNF grammar defining valid filter expressions (see Requirement 8).
+- **Filter_Grammar**: The formal BNF grammar defining valid filter expressions (see Requirement 9).
 - **Packet_List**: The scrollable UI table that displays captured or loaded packets in real time.
 - **Protocol_Chart**: The UI chart that shows the distribution of protocols across packets currently in the Packet_Buffer.
 - **Educational_Layer**: The subsystem providing tooltips, field explanations, and guided challenges.
 - **Anonymizer**: The component that replaces sensitive payload data with deterministic pseudonyms before any data reaches the renderer process.
 - **IPC_Bridge**: The Electron contextBridge/preload layer that mediates all communication between the renderer and main processes.
 - **Logger**: The main-process component that writes structured diagnostic and error entries to a persistent log file.
-- **Packet**: A structured object containing decoded protocol fields, metadata (timestamp, interface, length), and an anonymized payload reference.
+- **Packet**: A general term for a structured packet object used by the Application; where precision is required, the document distinguishes between ParsedPacket in the privileged domain and AnonPacket in the renderer-visible domain.
+- **ParsedPacket**: The privileged-domain structured packet object produced by the Parser, containing decoded protocol fields, metadata, and any parser error annotations. ParsedPacket instances remain outside the renderer process.
+- **AnonPacket**: The renderer-safe packet object derived from a ParsedPacket after anonymization, containing only anonymized payload-related data and safe metadata for visualization and educational use.
 - **pps**: Packets per second.
 - **PCAP**: Packet capture file format (.pcap / .pcapng).
 - **Welcome_Screen**: The first-launch onboarding overlay that introduces NetVis to new users.
@@ -47,9 +53,16 @@ These rules apply unconditionally across the entire application. Any implementat
 | ARCH-02 | THE Application SHALL set `nodeIntegration: false` and `contextIsolation: true` in all BrowserWindow webPreferences.                  |
 | ARCH-03 | THE Application SHALL NOT load remote URLs in any BrowserWindow.                                                                      |
 | ARCH-04 | THE Anonymizer SHALL execute entirely within the main process; only anonymized data SHALL cross the IPC_Bridge to the renderer.       |
-| ARCH-05 | THE Application SHALL enforce unidirectional data flow: Capture_Engine → Parser → Anonymizer → Packet_Buffer → IPC_Bridge → Renderer. |
+| ARCH-05 | THE Application SHALL enforce unidirectional data flow: Capture_Engine → Parser → Packet_Buffer → [IPC boundary: Anonymizer] → IPC_Bridge → Renderer. |
 | ARCH-06 | THE Application SHALL use TypeScript strict mode across all source files in main, preload, and renderer.                              |
-
+| ARCH-07 | THE Application SHALL enforce one owner per request lifecycle: timeout registration, listener registration, cleanup, and completion SHALL belong to the same subsystem. |
+| ARCH-08 | THE Application SHALL enforce one owner per renderer-visible push channel; no subsystem SHALL share ownership of IPC push event emission. |
+| ARCH-09 | THE Packet_Buffer SHALL store ParsedPacket structures in the privileged domain; only AnonPacket SHALL cross the IPC_Bridge to the renderer. |
+| ARCH-10 | THE Application SHALL expose renderer-visible packet delivery only through the `packet:batch` push channel; any renderer-local single-packet events SHALL be explicitly derived from `packet:batch` and SHALL NOT be treated as an independent source of truth. |
+| ARCH-11 | THE Application SHALL treat live capture, PCAP file import, and simulated replay as separate user-initiated modes that share a downstream pipeline; the Application SHALL NOT silently fall back between modes. |
+| ARCH-12 | THE Application SHALL validate file paths and file targets before any PCAP import, replay, or export operation. |
+| ARCH-13 | THE Application SHALL minimize privilege by platform: Linux capabilities instead of full root where possible, Windows capture-driver and user-group requirements, and macOS platform-specific capture permission guidance. |
+| ARCH-14 | THE Application SHALL assign ownership as follows: worker thread for file and simulated replay acquisition and parsing; main process for live capture (`CapSource`), privileged buffering, anonymization, and IPC delivery; renderer for educational UI and visualization only. |
 ---
 
 ## Requirements
@@ -75,7 +88,7 @@ These rules apply unconditionally across the entire application. Any implementat
 
 1. WHEN the user selects an interface and initiates capture, THE Capture_Engine SHALL begin capturing packets on that interface using libpcap (Linux/macOS) or Npcap (Windows).
 2. WHEN the user stops capture, THE Capture_Engine SHALL cease packet capture within 500ms and flush any pending packets to the Packet_Buffer.
-3. WHILE capture is active, THE Capture_Engine SHALL process incoming packets without blocking the Electron main-process event loop, using a dedicated worker thread or native addon async callback.
+3. WHILE capture is active, THE Capture_Engine SHALL process incoming packets without blocking the Electron main-process event loop. Live packet capture (`CapSource`) runs on the main process thread for native thread safety on Windows; file and simulated replay sources run in a dedicated worker thread that owns their acquisition and parsing. The Electron main process SHALL NOT perform hot-path file-streaming or simulated-replay parsing work.
 4. WHILE capture is active, THE Capture_Engine SHALL process each packet within 5 ms of receipt, measured from the libpcap/Npcap callback timestamp to insertion into the Packet_Buffer.
 5. WHILE capture is active and the Packet_Buffer is at maximum capacity, THE Capture_Engine SHALL discard the oldest packet in the buffer to accommodate the new packet AND THE Application SHALL display a persistent status indicator informing the user that buffer overflow is occurring and packets are being dropped.
 6. WHEN capture is stopped, THE Packet_Buffer SHALL retain all packets collected during the session until the user explicitly clears the buffer or starts a new capture session.
@@ -90,7 +103,7 @@ These rules apply unconditionally across the entire application. Any implementat
 
 #### Acceptance Criteria
 
-1. WHEN a raw packet is received, THE Parser SHALL decode the following protocol layers in order: Ethernet → IP (v4 and v6) → TCP, UDP, ICMP, DNS.
+1. WHEN a raw packet is received, THE Parser SHALL decode the packet beginning at Ethernet and then decode the next supported protocol layer according to the encapsulated protocol type: ARP directly under Ethernet; IPv4 or IPv6 under Ethernet; TCP, UDP, or ICMP under IPv4/IPv6; and DNS where present over UDP or TCP.
 2. THE Parser SHALL extract and label all standard header fields for each supported protocol (e.g., source/destination MAC, EtherType, source/destination IP, TTL, protocol number, source/destination port, flags, sequence/acknowledgment numbers, DNS query name and record type).
 3. IF a packet contains a protocol layer not in the supported set, THEN THE Parser SHALL mark that layer as "Unknown" and preserve the raw byte length without exposing raw payload bytes to the renderer.
 4. IF a packet is malformed (e.g., header length exceeds packet length), THEN THE Parser SHALL produce a partial Packet containing all successfully decoded fields, mark the malformed layer with an error annotation, and pass the Packet to the Packet_Buffer without crashing.
@@ -150,6 +163,7 @@ These rules apply unconditionally across the entire application. Any implementat
 2. THE Application SHALL support both `.pcap` (libpcap format) and `.pcapng` (pcapng format) file extensions.
 3. IF the selected file is not a valid PCAP or PCAPNG file, THEN THE Application SHALL display an error message identifying the file name and stating that the format is unrecognized, without crashing.
 4. WHEN a PCAP file is loaded, THE Application SHALL display the total packet count and file size in the status bar.
+5. WHEN the user selects a file for import, THE Application SHALL validate the resolved path, confirm that the target is a readable file, and reject directories or invalid file targets before starting any PCAP parsing operation.
 
 ---
 
@@ -163,7 +177,8 @@ These rules apply unconditionally across the entire application. Any implementat
 2. THE Pretty_Printer SHALL produce a PCAP file that can be opened by Wireshark 4.x without errors.
 3. IF the export fails (e.g., insufficient disk space, write permission denied), THEN THE Application SHALL display an error message stating the reason for failure and SHALL NOT produce a partial or corrupt file at the target path.
 4. WHILE export is in progress, THE Application SHALL display a progress indicator and SHALL NOT block the user from viewing the Packet_List.
-
+5. THE exported PCAP file SHALL contain only anonymized packet data as defined in Requirement 4; export is an educational tool, not a forensic raw packet export.
+6. WHEN the user selects an export target, THE Application SHALL validate the resolved target path and write via a temporary file plus atomic rename so that a failed export does not leave a partial output file at the selected location.
 ---
 
 ### Requirement 9: Text-Based Packet Filtering
@@ -178,10 +193,10 @@ These rules apply unconditionally across the entire application. Any implementat
    expression  ::= term ( ( "AND" | "OR" ) term )*
    term        ::= [ "NOT" ] predicate
    predicate   ::= field comparator value
-   field       ::= "proto" | "src" | "dst" | "port" | "len"
+   field       ::= "proto" | "src" | "dst" | "port" | "len" | "ts"
    comparator  ::= "==" | "!=" | ">" | "<" | ">=" | "<="
    value       ::= quoted-string | number | ip-address | protocol-name
-   protocol-name ::= "TCP" | "UDP" | "ICMP" | "DNS" | "ARP" | "OTHER"
+   protocol-name ::= "TCP" | "UDP" | "ICMP" | "DNS" | "ARP" | "IPv6" | "OTHER"
    quoted-string ::= '"' [^"]* '"'
    number      ::= [0-9]+
    ip-address  ::= ipv4-address | ipv6-address
@@ -201,7 +216,7 @@ These rules apply unconditionally across the entire application. Any implementat
 #### Acceptance Criteria
 
 1. WHEN the user selects a packet row in the Packet_List, THE Educational_Layer SHALL display a detail panel showing each decoded protocol field with its name, value, byte offset, and a plain-English explanation of the field's purpose.
-2. THE Educational_Layer SHALL provide explanations for all fields of the following protocols: Ethernet (destination MAC, source MAC, EtherType), IPv4 (version, IHL, DSCP, total length, TTL, protocol, source IP, destination IP), TCP (source port, destination port, sequence number, acknowledgment number, flags, window size), UDP (source port, destination port, length, checksum), ICMP (type, code, checksum), DNS (ID, flags, question count, answer count, query name, record type).
+2. THE Educational_Layer SHALL provide explanations for all fields of the following protocols: Ethernet (destination MAC, source MAC, EtherType), IPv4 (version, IHL, DSCP, total length, TTL, protocol, source IP, destination IP), IPv6 (version, traffic class, flow label, payload length, next header, hop limit, source IP, destination IP), ARP (hardware type, protocol type, operation, sender hardware address, sender protocol address, target hardware address, target protocol address), TCP (source port, destination port, sequence number, acknowledgment number, flags, window size), UDP (source port, destination port, length, checksum), ICMP (type, code, checksum), DNS (ID, flags, question count, answer count, query name, record type).
 3. WHERE a protocol field has a well-known enumerated value (e.g., TCP flag SYN, DNS record type A), THE Educational_Layer SHALL display the symbolic name alongside the numeric value.
 4. THE Educational_Layer SHALL provide all field explanation text in a format accessible to screen readers, with each explanation associated to its field label via ARIA attributes meeting WCAG 2.1 Level AA.
 
@@ -217,7 +232,7 @@ These rules apply unconditionally across the entire application. Any implementat
 2. WHEN the user activates a challenge, THE Educational_Layer SHALL display a goal description, success criteria, and a hint that can be revealed on demand.
 3. WHILE a challenge is active, THE Educational_Layer SHALL evaluate the success criteria at most every 500 ms using a debounced check to avoid excessive re-evaluation during rapid packet arrival.
 4. WHEN the user's current Packet_List state satisfies a challenge's success criteria, THE Educational_Layer SHALL display a completion notification within 1 second of the criteria being met.
-5. THE Educational_Layer SHALL track challenge completion state in persistent local storage so that completed challenges remain marked across application restarts.
+5. THE Educational_Layer SHALL track challenge completion state in persistent application settings so that completed challenges remain marked across application restarts.
 
 ---
 
@@ -295,7 +310,7 @@ These rules apply unconditionally across the entire application. Any implementat
 #### Acceptance Criteria
 
 1. THE Application SHALL apply a consistent visual design system across all screens, defining a color palette, typography scale, spacing scale, and component styles that are used uniformly throughout the UI.
-2. THE Application SHALL use the following fixed per-protocol color mapping on every UI surface that references protocol identity (Packet_List rows, Protocol_Chart segments, Packet_Detail_Inspector layer nodes, Packet_Flow_Timeline buckets, OSI_Layer_Diagram active layers): TCP = `#3B82F6` (blue), UDP = `#10B981` (green), ICMP = `#F59E0B` (amber), DNS = `#8B5CF6` (purple), ARP = `#EF4444` (red), OTHER = `#6B7280` (gray). These values SHALL NOT vary between dark and light mode; only the surrounding background and text colors SHALL adapt.
+2. THE Application SHALL use the following fixed per-protocol color mapping on every UI surface that references protocol identity (Packet_List rows, Protocol_Chart segments, Packet_Detail_Inspector layer nodes, Packet_Flow_Timeline buckets, OSI_Layer_Diagram active layers): TCP = `#3B82F6` (blue), UDP = `#10B981` (green), ICMP = `#F59E0B` (amber), DNS = `#8B5CF6` (purple), ARP = `#EF4444` (red), IPv6 = `#06B6D4` (cyan), OTHER = `#6B7280` (gray). These values SHALL NOT vary between dark and light mode; only the surrounding background and text colors SHALL adapt.
 3. THE Application SHALL provide a dark mode and a light mode; WHEN the Application starts for the first time, THE Application SHALL default to the operating system's preferred color scheme.
 4. THE Application SHALL render all text at a minimum body font size of 14 px and all interactive control labels at a minimum of 13 px to ensure legibility without zooming.
 5. THE Application SHALL maintain a minimum color contrast ratio of 4.5:1 between foreground text and its background on all primary content surfaces, meeting WCAG 2.1 Level AA Success Criterion 1.4.3.
@@ -309,9 +324,9 @@ These rules apply unconditionally across the entire application. Any implementat
 
 #### Acceptance Criteria
 
-1. WHEN the Application is launched for the first time (no prior session data present in local storage), THE Application SHALL display a Welcome_Screen before the main capture interface.
+1. WHEN the Application is launched for the first time (no prior onboarding completion state present in persistent application settings), THE Application SHALL display a Welcome_Screen before the main capture interface.
 2. THE Welcome_Screen SHALL present a brief (three-step maximum) visual walkthrough covering: what NetVis does, how to start a live capture or load a PCAP file, and where to find the Educational_Layer challenges.
-3. WHEN the user completes or dismisses the Welcome_Screen, THE Application SHALL record the completion in persistent local storage so that the Welcome_Screen is not shown on subsequent launches.
+3. WHEN the user completes or dismisses the Welcome_Screen, THE Application SHALL record the completion in persistent application settings so that the Welcome_Screen is not shown on subsequent launches.
 4. THE Application SHALL provide a "Show Welcome Guide" menu action that re-opens the Welcome_Screen at any time, allowing users to revisit the introduction.
 5. THE Welcome_Screen SHALL be fully keyboard-navigable and meet WCAG 2.1 Level AA focus management criteria.
 
@@ -324,7 +339,7 @@ These rules apply unconditionally across the entire application. Any implementat
 #### Acceptance Criteria
 
 1. THE Application SHALL display a help icon (e.g., "?") adjacent to every non-obvious UI control; WHEN the user activates a help icon, THE Application SHALL show a tooltip or popover containing a plain-English description of that control's purpose and effect.
-2. THE Application SHALL group advanced settings (buffer size configuration, anonymization toggle path, log file access) behind a clearly labeled "Advanced" section or panel that is collapsed by default.
+2. THE Application SHALL group advanced settings (buffer size configuration, replay behavior controls, and log file access) behind a clearly labeled "Advanced" section or panel that is collapsed by default.
 3. WHEN the Application is in an idle state (no capture active, no file loaded), THE Application SHALL display a status bar message in plain English describing the next recommended action (e.g., "Select a network interface and press Start to begin capturing packets.").
 4. WHILE capture is active, THE Application SHALL display a plain-English status bar message describing the current capture state, including the active interface name, elapsed capture time, and current packet rate in pps.
 5. IF the Packet_List is empty after a filter is applied, THEN THE Application SHALL display an inline message explaining that no packets match the current filter and suggesting the user clear or modify the filter expression.
@@ -396,9 +411,9 @@ These rules apply unconditionally across the entire application. Any implementat
 
 #### Acceptance Criteria
 
-1. THE Application SHALL run on Windows 10 (x64), macOS 12 (x64 and arm64), and Ubuntu 22.04 LTS (x64) without requiring the user to manually install libpcap or Npcap; the installer SHALL bundle or prompt for these dependencies automatically.
+1. THE Application SHALL produce installable artifacts for Windows 10 (x64), macOS 12 (x64 and arm64), and Ubuntu 22.04 LTS (x64).
 2. THE Application SHALL produce installable artifacts for all three platforms via the existing `electron-builder` build pipeline.
-3. IF the required capture library (libpcap or Npcap) is absent at runtime, THEN THE Application SHALL display a platform-specific installation guide and disable live capture functionality gracefully, leaving PCAP file import available.
+3. IF the required live-capture library or permission model is unavailable at runtime, THEN THE Application SHALL display platform-specific setup guidance and disable live capture gracefully while keeping PCAP file import and simulated replay available.
 
 ---
 

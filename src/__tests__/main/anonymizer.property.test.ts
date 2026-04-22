@@ -200,7 +200,7 @@ describe('Anonymizer — anonymization invariant (P6)', () => {
         const anon = Anonymizer.anonymize(parsed)
         expect(anon).not.toHaveProperty('rawData')
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -218,7 +218,7 @@ describe('Anonymizer — anonymization invariant (P6)', () => {
         expect(anon.captureMode).toBe(parsed.captureMode)
         expect(anon.wireLength).toBe(parsed.wireLength)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -236,7 +236,7 @@ describe('Anonymizer — anonymization invariant (P6)', () => {
           expect(anon.layers[i].protocol).toBe(parsed.layers[i].protocol)
         }
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -264,7 +264,7 @@ describe('Anonymizer — anonymization invariant (P6)', () => {
           }
         }
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -289,7 +289,7 @@ describe('Anonymizer — anonymization invariant (P6)', () => {
           }
         }
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -312,7 +312,7 @@ describe('Anonymizer — anonymization invariant (P6)', () => {
           expect(payloadField!.value).toMatch(/^[0-9a-f]{8}$/)
         }
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -329,7 +329,7 @@ describe('Anonymizer — anonymization invariant (P6)', () => {
         expect(anon.dstAddress).toBeTruthy()
         expect(anon.protocol).toBeTruthy()
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 })

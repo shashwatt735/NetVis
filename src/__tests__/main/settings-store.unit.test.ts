@@ -11,15 +11,19 @@ import * as os from 'os'
 describe('Settings_Store — unit tests', () => {
   let tempDir: string
   let settingsPath: string
-  let store: SettingsStore
+  let store: SettingsStore | null
 
   beforeEach(() => {
     // Create a temporary directory for each test
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'netvis-test-'))
     settingsPath = path.join(tempDir, 'settings.json')
+    store = null
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    if (store) {
+      await store.flush()
+    }
     // Clean up temporary directory
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true })
@@ -80,7 +84,7 @@ describe('Settings_Store — unit tests', () => {
    * Test: persistence across reload
    * Validates: Requirement 20.2 — settings persist to disk
    */
-  it('persists settings across store reload', () => {
+  it('persists settings across store reload', async () => {
     store = new SettingsStore(tempDir)
 
     // Set some values
@@ -90,6 +94,8 @@ describe('Settings_Store — unit tests', () => {
       welcomeSeen: true,
       completedChallenges: ['challenge-1', 'challenge-2']
     })
+
+    await store.flush()
 
     // Create a new store instance (simulates app restart)
     const store2 = new SettingsStore(tempDir)

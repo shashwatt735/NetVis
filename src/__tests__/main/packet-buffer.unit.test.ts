@@ -3,9 +3,9 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { PacketBuffer } from '../../main/packet-buffer/index'
-import type { AnonPacket } from '../../shared/capture-types'
+import type { ParsedPacket } from '../../shared/capture-types'
 
-function makePacket(id: string, timestamp = 0): AnonPacket {
+function makePacket(id: string, timestamp = 0): ParsedPacket {
   return {
     id,
     timestamp,
@@ -13,10 +13,7 @@ function makePacket(id: string, timestamp = 0): AnonPacket {
     captureMode: 'live',
     wireLength: 64,
     layers: [],
-    srcAddress: '0.0.0.0',
-    dstAddress: '0.0.0.0',
-    protocol: 'OTHER',
-    length: 64
+    rawData: new Uint8Array([0x01])
   }
 }
 

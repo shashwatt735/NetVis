@@ -29,12 +29,13 @@ export class SimulatedReplaySource implements PacketSource {
   async start(): Promise<void> {
     if (this.stopped) return
 
-    // Check file exists
+    // Check file exists — BUGFIX-02: throw instead of calling errorHandler
     if (!fs.existsSync(this.filePath)) {
-      this.errorHandler(
-        mapError(new Error(`File not found: ${this.filePath}`), 'FILE_NOT_FOUND', this.filePath)
+      throw mapError(
+        new Error(`File not found: ${this.filePath}`),
+        'FILE_NOT_FOUND',
+        this.filePath
       )
-      return
     }
 
     let parse: (stream: fs.ReadStream) => NodeJS.EventEmitter & { pause(): void; resume(): void }
@@ -46,8 +47,8 @@ export class SimulatedReplaySource implements PacketSource {
       }
       parse = pcapParser.parse
     } catch (err) {
-      this.errorHandler(mapError(err as Error, 'LIBRARY_UNAVAILABLE'))
-      return
+      // BUGFIX-02: throw on startup failure
+      throw mapError(err as Error, 'LIBRARY_UNAVAILABLE')
     }
 
     try {
@@ -113,6 +114,7 @@ export class SimulatedReplaySource implements PacketSource {
         }
       })
 
+      // Runtime errors (post-startup) — use errorHandler, not throw
       parser.on('error', (err: Error) => {
         this.errorHandler(mapError(err, 'FILE_INVALID_FORMAT'))
       })
@@ -121,7 +123,8 @@ export class SimulatedReplaySource implements PacketSource {
         this.errorHandler(mapError(err, 'FILE_INVALID_FORMAT'))
       })
     } catch (err) {
-      this.errorHandler(mapError(err as Error, 'FILE_INVALID_FORMAT'))
+      // BUGFIX-02: throw on startup failure (stream/parser creation error)
+      throw mapError(err as Error, 'FILE_INVALID_FORMAT')
     }
   }
 

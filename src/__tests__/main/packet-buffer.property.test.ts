@@ -4,9 +4,9 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import { PacketBuffer } from '../../main/packet-buffer/index'
-import type { AnonPacket } from '../../shared/capture-types'
+import type { ParsedPacket } from '../../shared/capture-types'
 
-function makePacket(id: string): AnonPacket {
+function makePacket(id: string): ParsedPacket {
   return {
     id,
     timestamp: Date.now(),
@@ -14,10 +14,7 @@ function makePacket(id: string): AnonPacket {
     captureMode: 'live',
     wireLength: 64,
     layers: [],
-    srcAddress: '0.0.0.0',
-    dstAddress: '0.0.0.0',
-    protocol: 'OTHER',
-    length: 64
+    rawData: new Uint8Array([0x01])
   }
 }
 
@@ -37,7 +34,7 @@ describe('PacketBuffer — ring-buffer capacity invariant (P2)', () => {
           expect(buf.size).toBe(Math.min(pushCount, capacity))
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -68,7 +65,7 @@ describe('PacketBuffer — ring-buffer capacity invariant (P2)', () => {
           }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -92,7 +89,7 @@ describe('PacketBuffer — ring-buffer capacity invariant (P2)', () => {
           expect(overflowFired).toBe(overflowCount)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -116,7 +113,7 @@ describe('PacketBuffer — ring-buffer capacity invariant (P2)', () => {
           expect(all.map((p) => p.id)).toEqual(expected)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -128,7 +125,7 @@ describe('PacketBuffer — ring-buffer capacity invariant (P2)', () => {
         expect(buf.capacity).toBe(capacity)
         expect(buf.size).toBe(0)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 })

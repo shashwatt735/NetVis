@@ -44,11 +44,11 @@ function buildPlatformHint(code: CaptureErrorCode): string | undefined {
 
   switch (process.platform) {
     case 'win32':
-      return 'Run NetVis as Administrator, and ensure Npcap is installed from npcap.com.'
+      return 'Ensure Npcap is installed from npcap.com. If capture is restricted to administrators, run NetVis as Administrator. If an "Npcap Users" group exists on your system, you can add your account to that group instead and then sign out and back in.'
     case 'linux':
       return 'Run: sudo setcap cap_net_raw,cap_net_admin=eip /path/to/netvis'
     case 'darwin':
-      return 'Run NetVis with sudo, or grant terminal full disk access in System Preferences. (SMJobBless privileged helper is planned for a future release.)'
+      return 'Run NetVis with sudo, or grant Full Disk Access in System Preferences → Security & Privacy → Privacy. (SMJobBless privileged helper is planned for a future release.)'
     default:
       return undefined
   }

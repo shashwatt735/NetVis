@@ -19,32 +19,41 @@ export class CaptureController {
     private readonly onPacket: (p: RawPacket) => void,
     private readonly onError: (e: CaptureError) => void,
     private readonly onStopped: () => void,
-    private readonly onStatus: (s: ControllerState) => void
+    private readonly onStatus: (s: ControllerState) => void,
+    // BUGFIX-04: callback to signal command-complete for a specific requestId
+    private readonly onComplete?: (requestId: string) => void
   ) {}
 
   async startLive(iface: string): Promise<void> {
     this.guardIdle('startLive')
-    this.source = new CapSource(iface)
-    this.wireSource()
-    await this.source.start()
+    const source = new CapSource(iface)
+    this.source = source
+    this.wireSource(source)
+    // BUGFIX-02: throw on startup failure instead of calling errorHandler
+    await source.start()
     this.state = 'live'
     this.onStatus('live')
   }
 
-  async startFile(filePath: string): Promise<void> {
+  // BUGFIX-04: requestId passed so onComplete can signal command-complete when streaming ends
+  async startFile(filePath: string, requestId?: string): Promise<void> {
     this.guardIdle('startFile')
-    this.source = new PcapFileSource(filePath)
-    this.wireSource()
-    await this.source.start()
+    const source = new PcapFileSource(filePath)
+    this.source = source
+    this.wireSource(source, requestId)
+    // BUGFIX-02: throw on startup failure
+    await source.start()
     this.state = 'file'
     this.onStatus('file')
   }
 
-  async startSimulated(filePath: string, speed: SpeedMultiplier): Promise<void> {
+  async startSimulated(filePath: string, speed: SpeedMultiplier, requestId?: string): Promise<void> {
     this.guardIdle('startSimulated')
-    this.source = new SimulatedReplaySource(filePath, speed)
-    this.wireSource()
-    await this.source.start()
+    const source = new SimulatedReplaySource(filePath, speed)
+    this.source = source
+    this.wireSource(source, requestId)
+    // BUGFIX-02: throw on startup failure
+    await source.start()
     this.state = 'simulated'
     this.onStatus('simulated')
   }
@@ -61,13 +70,17 @@ export class CaptureController {
     return this.state
   }
 
-  private wireSource(): void {
-    this.source!.onPacket(this.onPacket)
-    this.source!.onError(this.onError)
-    this.source!.onStopped(() => {
+  private wireSource(source: PacketSource, requestId?: string): void {
+    source.onPacket(this.onPacket)
+    source.onError(this.onError)
+    source.onStopped(() => {
       this.state = 'idle'
       this.source = null
       this.onStopped()
+      // BUGFIX-04: signal command-complete for file/simulated streaming end
+      if (requestId && this.onComplete) {
+        this.onComplete(requestId)
+      }
     })
   }
 

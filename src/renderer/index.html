@@ -1,15 +1,16 @@
 <!doctype html>
 <html>
+
   <head>
     <meta charset="UTF-8" />
-    <title>Electron</title>
-    <!-- CSP is enforced via session.webRequest.onHeadersReceived in main process (APP-SEC-01).
-         The meta tag is intentionally omitted to avoid conflicting with the header-based policy
-         which correctly handles dev (Vite HMR) vs production differences. -->
+    <title>NetVis</title>
+    <!-- APP-SEC-01: CSP is set programmatically in main process based on environment.
+         No meta tag here to avoid breaking Vite HMR in development. -->
   </head>
 
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
+
 </html>

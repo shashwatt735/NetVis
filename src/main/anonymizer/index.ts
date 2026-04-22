@@ -9,7 +9,7 @@
  *
  * Anonymization algorithm:
  *  - Transport payload → sha256(SESSION_KEY || payload).slice(0, 8) hex chars
- *  - DNS answer IPs → same pseudonym; query name and record type are preserved.
+ *  - DNS: query name and record type are preserved; answer records are not currently parsed.
  *
  * Requirements: Req 4.1, Req 4.2, Req 4.3, Req 4.4, Req 4.5, ARCH-04
  */
@@ -60,7 +60,7 @@ function isDnsAnswerIpField(fieldName: string): boolean {
 /**
  * Anonymize a DNS layer.
  * - Preserve query name (queryName field) and record type (queryType field) — Req 4.4.
- * - Anonymize any answer IP address fields.
+ * - DNS answer records are not currently parsed in stabilization scope.
  * - All other fields are preserved unchanged (Req 4.3).
  */
 function anonymizeDnsLayer(layer: ParsedLayer): ParsedLayer {
@@ -69,7 +69,8 @@ function anonymizeDnsLayer(layer: ParsedLayer): ParsedLayer {
     if (f.name === 'queryName' || f.name === 'queryType') {
       return f
     }
-    // Anonymize answer IP address fields
+    // DNS answer parsing is not implemented in stabilization scope
+    // If answer fields were parsed, they would be anonymized here
     if (isDnsAnswerIpField(f.name) && typeof f.value === 'string') {
       return { ...f, value: pseudonymString(f.value) }
     }
@@ -135,7 +136,7 @@ export const Anonymizer = {
    * Anonymize a ParsedPacket, producing an AnonPacket safe to cross the IPC_Bridge.
    *
    * - Transport-layer payload bytes are replaced with sha256(key||payload)[0..7] hex (Req 4.1).
-   * - DNS answer IPs are anonymized; query name and record type are preserved (Req 4.4).
+   * - DNS: query name and record type are preserved; answer records are not currently parsed (Req 4.4).
    * - All protocol headers and metadata are preserved unchanged (Req 4.3).
    * - rawData is never included in the output (Req 4.5, ARCH-04).
    */

@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS: Settings = {
 export class SettingsStore extends EventEmitter {
   private settings: Settings
   private filePath: string
+  private saveChain: Promise<void> = Promise.resolve()
 
   constructor(userDataPath: string) {
     super()
@@ -81,20 +82,38 @@ export class SettingsStore extends EventEmitter {
    * Write current settings to disk.
    * Requirement: Req 20.2 — persist settings on mutation.
    */
-  private save(): void {
+  private async save(): Promise<void> {
+    const tempPath = `${this.filePath}.tmp`
     try {
       const dir = path.dirname(this.filePath)
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
-
-      fs.writeFileSync(this.filePath, JSON.stringify(this.settings, null, 2), 'utf-8')
-      Logger.debug('SettingsStore', 'Settings saved successfully')
+      await fs.promises.mkdir(dir, { recursive: true })
+      await fs.promises.writeFile(tempPath, JSON.stringify(this.settings, null, 2), 'utf-8')
+      await fs.promises.rename(tempPath, this.filePath)
     } catch (err) {
+      try {
+        await fs.promises.unlink(tempPath)
+      } catch {
+        // Ignore cleanup failure for temp file
+      }
       Logger.error('SettingsStore', 'Failed to save settings', {
         error: err instanceof Error ? err.message : String(err)
       })
     }
+  }
+
+  /**
+   * Queue settings writes so disk IO stays asynchronous and ordered.
+   */
+  private scheduleSave(): void {
+    this.saveChain = this.saveChain.then(() => this.save())
+  }
+
+  /**
+   * Await all queued disk writes.
+   * Primarily used by tests to make async persistence deterministic.
+   */
+  async flush(): Promise<void> {
+    await this.saveChain
   }
 
   /**
@@ -151,7 +170,7 @@ export class SettingsStore extends EventEmitter {
     }
 
     if (changed) {
-      this.save()
+      this.scheduleSave()
       this.emit('change', this.get())
       Logger.debug('SettingsStore', 'Settings updated', {
         fields: Object.keys(patch).join(', ')

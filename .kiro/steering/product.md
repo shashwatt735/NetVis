@@ -1,5 +1,7 @@
 # Product Overview
 
+**Last Modified:** 2026-04-13
+
 NetVis is a cross-platform desktop application for educational network packet visualization. It enables beginner networking students to capture live network packets, load saved PCAP files, and explore protocol behavior through real-time visualizations and guided challenges.
 
 ## Target Audience
@@ -24,6 +26,21 @@ Beginner networking students learning protocol fundamentals.
 - Educational field explanations
 - Guided challenges
 
+## Product Principles
+
+- **Education-first:** NetVis is an education-first packet visualization desktop application, not a professional network forensics replacement
+- **Security over convenience:** Security has priority over convenience and visual polish
+- **Correctness first:** Correctness and stability come before advanced features
+- **Visualization with boundaries:** Visualization is a primary product feature, but never at the cost of security or correctness
+- **Separate capture modes:** Live capture, file import, and simulated replay are separate features that share a downstream pipeline
+
+## Documentation Authority
+
+- **Historical synopsis documents** are vision/motivation references, not current technical authority
+- **Requirements and design documents** are the normative technical sources
+
 ## Current Status
 
-Phase 1 - Core Pipeline Integration (Tasks 1-11 complete, 86/86 tests passing)
+This document does not assert implementation completion, test counts, or bugfix-final status.
+
+Operational and implementation-coupled status must be tracked separately and remains subject to source-code and test verification.

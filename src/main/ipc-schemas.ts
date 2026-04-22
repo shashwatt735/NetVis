@@ -24,6 +24,11 @@ export const PcapStartFileSchema = z.object({
   path: z.string().min(1)
 })
 
+// --- Filter ---
+export const FilterApplySchema = z.object({
+  expression: z.string()
+})
+
 // --- Buffer ---
 export const BufferSetCapacitySchema = z.object({
   capacity: z.number().int().min(1000).max(100000)

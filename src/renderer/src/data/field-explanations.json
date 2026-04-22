@@ -1,0 +1,359 @@
+[
+  {
+    "protocol": "Ethernet",
+    "field": "dst_mac",
+    "label": "Destination MAC",
+    "explanation": "The hardware address of the network interface this frame is being sent to. MAC addresses are 6 bytes and uniquely identify a device on a local network segment.",
+    "byteOffset": 0,
+    "byteLength": 6,
+    "symbolicValues": {
+      "FF:FF:FF:FF:FF:FF": "Broadcast — sent to all devices on the local network"
+    }
+  },
+  {
+    "protocol": "Ethernet",
+    "field": "src_mac",
+    "label": "Source MAC",
+    "explanation": "The hardware address of the network interface that sent this frame. Used by switches to learn which port a device is connected to.",
+    "byteOffset": 6,
+    "byteLength": 6,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "Ethernet",
+    "field": "ethertype",
+    "label": "EtherType",
+    "explanation": "Identifies the protocol carried in the payload. Values above 0x0600 indicate a protocol type; values below indicate the payload length (IEEE 802.3).",
+    "byteOffset": 12,
+    "byteLength": 2,
+    "symbolicValues": {
+      "0x0800": "IPv4",
+      "0x0806": "ARP — Address Resolution Protocol",
+      "0x86DD": "IPv6",
+      "0x8100": "802.1Q VLAN tag"
+    }
+  },
+  {
+    "protocol": "IPv4",
+    "field": "version",
+    "label": "Version",
+    "explanation": "IP protocol version. Always 4 for IPv4 packets. The first nibble of the IP header.",
+    "byteOffset": 0,
+    "byteLength": 1,
+    "symbolicValues": {
+      "4": "IPv4",
+      "6": "IPv6"
+    }
+  },
+  {
+    "protocol": "IPv4",
+    "field": "ihl",
+    "label": "IHL (Header Length)",
+    "explanation": "Internet Header Length — the number of 32-bit words in the IP header. The minimum value is 5 (20 bytes). Values above 5 indicate options are present.",
+    "byteOffset": 0,
+    "byteLength": 1,
+    "symbolicValues": {
+      "5": "20 bytes — standard header, no options"
+    }
+  },
+  {
+    "protocol": "IPv4",
+    "field": "dscp",
+    "label": "DSCP (Differentiated Services)",
+    "explanation": "Differentiated Services Code Point — used by routers to prioritize traffic. Higher-priority traffic (e.g., VoIP) can be marked to receive preferential treatment.",
+    "byteOffset": 1,
+    "byteLength": 1,
+    "symbolicValues": {
+      "0": "Best Effort — default, no special priority",
+      "46": "Expedited Forwarding — low latency (e.g., VoIP)"
+    }
+  },
+  {
+    "protocol": "IPv4",
+    "field": "total_length",
+    "label": "Total Length",
+    "explanation": "The total size of the IP packet in bytes, including the header and payload. The maximum value is 65,535 bytes.",
+    "byteOffset": 2,
+    "byteLength": 2,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "IPv4",
+    "field": "ttl",
+    "label": "TTL (Time to Live)",
+    "explanation": "Decremented by 1 at each router hop. When it reaches 0, the packet is discarded and an ICMP Time Exceeded message is sent back. Prevents packets from looping forever.",
+    "byteOffset": 8,
+    "byteLength": 1,
+    "symbolicValues": {
+      "64": "Default on Linux/macOS",
+      "128": "Default on Windows",
+      "255": "Maximum — typically set by network equipment"
+    }
+  },
+  {
+    "protocol": "IPv4",
+    "field": "protocol",
+    "label": "Protocol",
+    "explanation": "Identifies the transport-layer protocol carried in the IP payload.",
+    "byteOffset": 9,
+    "byteLength": 1,
+    "symbolicValues": {
+      "1": "ICMP — Internet Control Message Protocol",
+      "6": "TCP — Transmission Control Protocol",
+      "17": "UDP — User Datagram Protocol",
+      "58": "ICMPv6"
+    }
+  },
+  {
+    "protocol": "IPv4",
+    "field": "src_ip",
+    "label": "Source IP",
+    "explanation": "The IPv4 address of the sender. Routers use this to know where to send replies.",
+    "byteOffset": 12,
+    "byteLength": 4,
+    "symbolicValues": {
+      "127.0.0.1": "Loopback — traffic staying on the same machine",
+      "192.168.x.x": "Private network (RFC 1918)",
+      "10.x.x.x": "Private network (RFC 1918)",
+      "172.16–31.x.x": "Private network (RFC 1918)"
+    }
+  },
+  {
+    "protocol": "IPv4",
+    "field": "dst_ip",
+    "label": "Destination IP",
+    "explanation": "The IPv4 address of the intended recipient. Routers forward the packet toward this address.",
+    "byteOffset": 16,
+    "byteLength": 4,
+    "symbolicValues": {
+      "255.255.255.255": "Limited broadcast — sent to all hosts on the local network",
+      "224.x.x.x": "Multicast address range"
+    }
+  },
+  {
+    "protocol": "TCP",
+    "field": "src_port",
+    "label": "Source Port",
+    "explanation": "The port number on the sender's side. Ephemeral (client) ports are typically in the range 49152–65535. Well-known ports (0–1023) are assigned to standard services.",
+    "byteOffset": 0,
+    "byteLength": 2,
+    "symbolicValues": {
+      "80": "HTTP",
+      "443": "HTTPS",
+      "22": "SSH",
+      "53": "DNS",
+      "25": "SMTP"
+    }
+  },
+  {
+    "protocol": "TCP",
+    "field": "dst_port",
+    "label": "Destination Port",
+    "explanation": "The port number on the receiver's side. Identifies which application or service should receive this segment.",
+    "byteOffset": 2,
+    "byteLength": 2,
+    "symbolicValues": {
+      "80": "HTTP",
+      "443": "HTTPS",
+      "22": "SSH",
+      "53": "DNS",
+      "25": "SMTP"
+    }
+  },
+  {
+    "protocol": "TCP",
+    "field": "seq",
+    "label": "Sequence Number",
+    "explanation": "Identifies the position of the first byte of this segment in the overall data stream. TCP uses sequence numbers to reassemble out-of-order segments and detect missing data.",
+    "byteOffset": 4,
+    "byteLength": 4,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "TCP",
+    "field": "ack",
+    "label": "Acknowledgment Number",
+    "explanation": "When the ACK flag is set, this field contains the sequence number of the next byte the sender expects to receive. It confirms all bytes up to this number have been received.",
+    "byteOffset": 8,
+    "byteLength": 4,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "TCP",
+    "field": "flags",
+    "label": "Flags",
+    "explanation": "Control bits that manage the state of the TCP connection. Multiple flags can be set simultaneously.",
+    "byteOffset": 13,
+    "byteLength": 1,
+    "symbolicValues": {
+      "SYN": "Synchronize — initiates a connection (first step of three-way handshake)",
+      "ACK": "Acknowledge — confirms receipt of data",
+      "FIN": "Finish — gracefully closes a connection",
+      "RST": "Reset — abruptly terminates a connection",
+      "PSH": "Push — tells the receiver to deliver data to the application immediately",
+      "URG": "Urgent — indicates urgent data is present"
+    }
+  },
+  {
+    "protocol": "TCP",
+    "field": "window_size",
+    "label": "Window Size",
+    "explanation": "The number of bytes the sender is willing to receive before requiring an acknowledgment. A larger window allows more data in flight and improves throughput on high-latency links.",
+    "byteOffset": 14,
+    "byteLength": 2,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "UDP",
+    "field": "src_port",
+    "label": "Source Port",
+    "explanation": "The port number on the sender's side. For UDP, this is optional — a value of 0 means the sender does not require a reply.",
+    "byteOffset": 0,
+    "byteLength": 2,
+    "symbolicValues": {
+      "53": "DNS",
+      "67": "DHCP server",
+      "68": "DHCP client",
+      "123": "NTP — Network Time Protocol"
+    }
+  },
+  {
+    "protocol": "UDP",
+    "field": "dst_port",
+    "label": "Destination Port",
+    "explanation": "The port number of the target application. UDP delivers the datagram to this port without establishing a connection first.",
+    "byteOffset": 2,
+    "byteLength": 2,
+    "symbolicValues": {
+      "53": "DNS",
+      "67": "DHCP server",
+      "68": "DHCP client",
+      "123": "NTP"
+    }
+  },
+  {
+    "protocol": "UDP",
+    "field": "length",
+    "label": "Length",
+    "explanation": "The total length of the UDP datagram in bytes, including the 8-byte header and the payload. The minimum value is 8 (header only, no payload).",
+    "byteOffset": 4,
+    "byteLength": 2,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "UDP",
+    "field": "checksum",
+    "label": "Checksum",
+    "explanation": "An error-detection value covering the UDP header and payload. A value of 0x0000 means the checksum was not computed (optional in IPv4, mandatory in IPv6).",
+    "byteOffset": 6,
+    "byteLength": 2,
+    "symbolicValues": {
+      "0x0000": "Checksum disabled (IPv4 only)"
+    }
+  },
+  {
+    "protocol": "ICMP",
+    "field": "type",
+    "label": "Type",
+    "explanation": "Identifies the category of ICMP message. Different types serve different diagnostic or control purposes.",
+    "byteOffset": 0,
+    "byteLength": 1,
+    "symbolicValues": {
+      "0": "Echo Reply — response to a ping",
+      "3": "Destination Unreachable — packet could not be delivered",
+      "8": "Echo Request — a ping",
+      "11": "Time Exceeded — TTL reached zero (used by traceroute)"
+    }
+  },
+  {
+    "protocol": "ICMP",
+    "field": "code",
+    "label": "Code",
+    "explanation": "Provides additional detail within an ICMP type. For example, Type 3 (Destination Unreachable) has codes that specify whether the network, host, port, or protocol was unreachable.",
+    "byteOffset": 1,
+    "byteLength": 1,
+    "symbolicValues": {
+      "0": "Net Unreachable (Type 3)",
+      "1": "Host Unreachable (Type 3)",
+      "3": "Port Unreachable (Type 3)"
+    }
+  },
+  {
+    "protocol": "ICMP",
+    "field": "checksum",
+    "label": "Checksum",
+    "explanation": "Error-detection value covering the entire ICMP message. The receiver recalculates this and discards the message if it does not match.",
+    "byteOffset": 2,
+    "byteLength": 2,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "DNS",
+    "field": "id",
+    "label": "Transaction ID",
+    "explanation": "A 16-bit identifier assigned by the client. The DNS server copies this value into its response so the client can match replies to outstanding queries.",
+    "byteOffset": 0,
+    "byteLength": 2,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "DNS",
+    "field": "flags",
+    "label": "Flags",
+    "explanation": "A 16-bit field encoding the message type, opcode, and status. Key bits include QR (query/response), AA (authoritative answer), TC (truncated), RD (recursion desired), and RA (recursion available).",
+    "byteOffset": 2,
+    "byteLength": 2,
+    "symbolicValues": {
+      "QR=0": "Query — the client is asking a question",
+      "QR=1": "Response — the server is answering",
+      "AA=1": "Authoritative Answer — the server owns this zone",
+      "TC=1": "Truncated — response was too large for UDP, retry with TCP",
+      "RD=1": "Recursion Desired — client wants the server to resolve on its behalf",
+      "RA=1": "Recursion Available — the server supports recursive queries"
+    }
+  },
+  {
+    "protocol": "DNS",
+    "field": "qdcount",
+    "label": "Question Count",
+    "explanation": "The number of questions in the Question section. Typically 1 — most DNS messages contain a single query.",
+    "byteOffset": 4,
+    "byteLength": 2,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "DNS",
+    "field": "ancount",
+    "label": "Answer Count",
+    "explanation": "The number of resource records in the Answer section. A value of 0 in a response means the name was not found (NXDOMAIN).",
+    "byteOffset": 6,
+    "byteLength": 2,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "DNS",
+    "field": "query_name",
+    "label": "Query Name",
+    "explanation": "The domain name being looked up, encoded as a sequence of length-prefixed labels (e.g., 'www.example.com' → 3www7example3com0).",
+    "byteOffset": 12,
+    "byteLength": -1,
+    "symbolicValues": {}
+  },
+  {
+    "protocol": "DNS",
+    "field": "record_type",
+    "label": "Record Type",
+    "explanation": "Specifies what kind of DNS record is being requested or returned.",
+    "byteOffset": -1,
+    "byteLength": 2,
+    "symbolicValues": {
+      "1": "A — IPv4 address",
+      "28": "AAAA — IPv6 address",
+      "5": "CNAME — canonical name alias",
+      "15": "MX — mail exchange",
+      "16": "TXT — text record",
+      "2": "NS — name server",
+      "6": "SOA — start of authority"
+    }
+  }
+]

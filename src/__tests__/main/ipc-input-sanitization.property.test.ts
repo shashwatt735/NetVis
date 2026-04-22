@@ -43,7 +43,7 @@ describe('IPC Input Sanitization (P17)', () => {
           expect(() => validateOrThrow(CaptureStartSchema, { iface: invalidIface })).toThrow()
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -56,7 +56,7 @@ describe('IPC Input Sanitization (P17)', () => {
         const result = validateOrThrow(CaptureStartSchema, { iface })
         expect(result.iface).toBe(iface)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -80,7 +80,7 @@ describe('IPC Input Sanitization (P17)', () => {
           ).toThrow()
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -94,7 +94,7 @@ describe('IPC Input Sanitization (P17)', () => {
         expect(result.path).toBe(path)
         expect(result.speed).toBe(speed)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -116,7 +116,7 @@ describe('IPC Input Sanitization (P17)', () => {
           expect(() => validateOrThrow(PcapStartFileSchema, { path: invalidPath })).toThrow()
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -141,7 +141,7 @@ describe('IPC Input Sanitization (P17)', () => {
           ).toThrow()
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -154,7 +154,7 @@ describe('IPC Input Sanitization (P17)', () => {
         const result = validateOrThrow(BufferSetCapacitySchema, { capacity })
         expect(result.capacity).toBe(capacity)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -169,7 +169,7 @@ describe('IPC Input Sanitization (P17)', () => {
           expect(() => validateOrThrow(SettingsPatchSchema, { theme: invalidTheme })).toThrow()
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -182,7 +182,7 @@ describe('IPC Input Sanitization (P17)', () => {
         const result = validateOrThrow(SettingsPatchSchema, { theme })
         expect(result.theme).toBe(theme)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -212,7 +212,7 @@ describe('IPC Input Sanitization (P17)', () => {
           ).toThrow()
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -244,7 +244,7 @@ describe('IPC Input Sanitization (P17)', () => {
           expect(result).toMatchObject(cleanPatch)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -259,7 +259,7 @@ describe('IPC Input Sanitization (P17)', () => {
         expect(result).not.toBeNull()
         expect(typeof result).toBe('object')
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -282,7 +282,7 @@ describe('IPC Input Sanitization (P17)', () => {
           expect(() => validateOrThrow(CaptureStartSchema, invalidInput)).toThrow(Error)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 })

@@ -1,11 +1,13 @@
 # Technology Stack
 
+**Last Modified:** 2026-04-22
+
 ## Core Framework
 
-- **Electron 34.x** - Cross-platform desktop framework
-- **React 18.x** - UI framework
+- **Electron 40.x** - Cross-platform desktop framework
+- **React 19.x** - UI framework
 - **TypeScript 5.x** - Type-safe development with strict mode enabled
-- **Vite 6.x** - Build tool and dev server
+- **Vite 7.x** - Build tool and dev server
 
 ## Main Process Libraries
 
@@ -17,8 +19,10 @@
 
 ## Testing
 
-- **Vitest** - Test runner (86 tests, 100% passing)
-- **fast-check** - Property-based testing (100+ iterations per property)
+- **Vitest** - Unit, integration, and property test runner
+- **fast-check** - Property-based testing framework with a minimum of 100 iterations per property case
+
+Implementation counts, pass counts, and completion status are not tracked in this steering file.
 
 ## Code Quality
 
@@ -53,11 +57,44 @@ npm run build:linux      # Package for Linux
 
 ## Environment Variables
 
-- **VITE_PHASE** - Feature phase flag (default: 1)
-- ****DEV_OVERLAY**** - Development overlay flag (auto-set based on mode)
+- **VITE_PHASE** - Feature phase flag (default: 2)
+- **__DEV_OVERLAY__** - Compile-time flag injected by Vite for development-only overlay logic
 
 ## Platform Requirements
 
 - **Windows:** Npcap installation required for live capture
 - **Linux:** libpcap + capabilities (`setcap cap_net_raw,cap_net_admin=eip`)
 - **macOS:** libpcap (built-in) + sudo or System Preferences permissions
+
+## Technical Invariants
+
+### Data Flow and Storage
+
+- **PacketBuffer stores ParsedPacket, not AnonPacket**
+- **Only AnonPacket may cross IPC to the renderer**
+- **Anonymization happens in the privileged domain at the IPC boundary before renderer delivery**
+- **Renderer-visible packet delivery uses `packet:batch` as the authoritative push channel**
+
+### Thread Ownership
+
+- **Worker thread owns:** `PcapFileSource`, `SimulatedReplaySource`, `CaptureController`, `Parser`
+- **Main process owns:** `CapSource` (live capture — runs on main thread due to Npcap/pcap_dispatch native thread safety on Windows), `CaptureEngine` orchestration, `WorkerSupervisor`, `Packet_Buffer`, `Anonymizer`, `IpcBatcher`, `Logger`, `Settings_Store`, and all IPC handlers
+- **Renderer owns:** React UI, Zustand store, visualization rendering, and educational UX only
+
+> **Design note:** `CapSource` was moved from the worker thread to the main thread to resolve a native crash on Windows. The `cap` library's `pcap_dispatch` runs a background OS thread whose callbacks fire into the Node.js environment. In a `worker_threads` Worker, that environment pointer becomes invalid under Electron 40.x on Windows, causing an `(env) != nullptr` assertion crash. Running `CapSource` on the stable, long-lived main-process environment eliminates this crash. File and simulated replay sources remain in the worker thread since they use Node.js streams which are safe in workers.
+
+### IPC and Validation
+
+- **IPC is typed through shared contracts**
+- **All renderer-to-main IPC payloads are schema-validated in the main process**
+- **IPC handlers do not synthesize success state beyond the canonical privileged-domain sources of truth**
+
+### Ownership and Lifecycle
+
+- **One owner per request lifecycle:** timeout registration, listener registration, cleanup, and completion belong to the same subsystem
+- **One owner per renderer-visible push channel**
+
+### Worker Management
+
+- **Worker replacement after crash must be explicit**, and `CaptureEngine` must rebind to the replacement worker before accepting further requests
+- **Worker startup viability is a hard prerequisite** before deeper runtime fixes

@@ -14,19 +14,26 @@ import type {
 
 export type Unsubscribe = () => void
 
+// BUGFIX-05: structured result distinguishes enumeration failure from empty list
+export type InterfaceResult =
+  | { ok: true; interfaces: NetworkInterface[] }
+  | { ok: false; error: string; platformHint?: string; diagnostic?: string }
+
 /**
  * ElectronAPI — the complete IPC contract exposed to the renderer via contextBridge.
  * All invoke channels return promises; all on channels accept handlers and return unsubscribe functions.
  */
 export interface ElectronAPI {
   // ─── Capture control (invoke) ───────────────────────────────────────────────
-  getInterfaces(): Promise<NetworkInterface[]>
+  getInterfaces(): Promise<InterfaceResult>
   startCapture(iface: string): Promise<void>
   stopCapture(): Promise<void>
   startSimulated(path: string, speed: SpeedMultiplier): Promise<void>
 
   // ─── PCAP import/export (invoke) ────────────────────────────────────────────
+  selectPcapFile(): Promise<{ ok: true; path: string } | { ok: false }>
   importPcap(): Promise<ImportResult>
+  importPcapFromPath(path: string): Promise<ImportResult>
   startFile(path: string): Promise<void>
   exportPcap(): Promise<ExportResult>
 
@@ -34,6 +41,9 @@ export interface ElectronAPI {
   clearBuffer(): Promise<void>
   setBufferCapacity(capacity: number): Promise<void>
   getAllPackets(): Promise<AnonPacket[]>
+
+  // ─── Filter (invoke) ────────────────────────────────────────────────────────
+  applyFilter(expression: string): Promise<{ packets: AnonPacket[]; error: string | null }>
 
   // ─── Settings (invoke) ──────────────────────────────────────────────────────
   getSettings(): Promise<Settings>

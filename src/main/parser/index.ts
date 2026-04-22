@@ -100,11 +100,12 @@ function decodeEthernet(
 function decodeIPv4(
   view: DataView,
   offset: number
-): { layer: ParsedLayer; nextOffset: number; protocol: number } {
+): { layer: ParsedLayer; nextOffset: number; protocol: number; payloadLength: number } {
   const fields: ParsedField[] = []
   let error: string | undefined
   let protocol = 0
   let nextOffset = offset
+  let payloadLength = 0
   const startOffset = offset
 
   try {
@@ -129,6 +130,8 @@ function decodeIPv4(
     const dst = ipv4ToString(view, offset + 16)
     fields.push(field('dst', 'Destination IP', dst, offset + 16, 4))
     nextOffset = offset + ihl
+    // Calculate payload length: total length minus header length
+    payloadLength = totalLength > ihl ? totalLength - ihl : 0
   } catch (e) {
     error = (e as Error).message
     nextOffset = offset + 20
@@ -142,16 +145,17 @@ function decodeIPv4(
     ...(error ? { error } : {})
   }
 
-  return { layer, nextOffset, protocol }
+  return { layer, nextOffset, protocol, payloadLength }
 }
 
 function decodeIPv6(
   view: DataView,
   offset: number
-): { layer: ParsedLayer; nextOffset: number; protocol: number } {
+): { layer: ParsedLayer; nextOffset: number; protocol: number; payloadLength: number } {
   const fields: ParsedField[] = []
   let error: string | undefined
   let protocol = 0
+  let payloadLength = 0
   const startOffset = offset
 
   try {
@@ -163,7 +167,7 @@ function decodeIPv6(
     fields.push(field('version', 'Version', version, offset, 1))
     fields.push(field('trafficClass', 'Traffic Class', trafficClass, offset, 1))
     fields.push(field('flowLabel', 'Flow Label', flowLabel, offset, 3))
-    const payloadLength = view.getUint16(offset + 4)
+    payloadLength = view.getUint16(offset + 4)
     fields.push(field('payloadLength', 'Payload Length', payloadLength, offset + 4, 2))
     protocol = view.getUint8(offset + 6)
     fields.push(field('nextHeader', 'Next Header', protocol, offset + 6, 1))
@@ -185,7 +189,7 @@ function decodeIPv6(
     ...(error ? { error } : {})
   }
 
-  return { layer, nextOffset: offset + 40, protocol }
+  return { layer, nextOffset: offset + 40, protocol, payloadLength }
 }
 
 function decodeTCP(view: DataView, offset: number): ParsedLayer {
@@ -218,11 +222,15 @@ function decodeTCP(view: DataView, offset: number): ParsedLayer {
     fields.push(field('flags', 'Flags', flags || '0', offset + 13, 1))
     const windowSize = view.getUint16(offset + 14)
     fields.push(field('windowSize', 'Window Size', windowSize, offset + 14, 2))
+    // Clamp dataOffset: must be >= 20 (minimum TCP header) and fit in the buffer.
+    // A corrupt or zero data-offset byte falls back to 20 via the || guard.
+    const safeDataOffset =
+      dataOffset >= 20 && offset + dataOffset <= view.byteLength ? dataOffset : 20
     return {
       protocol: 'TCP',
       fields,
       rawByteOffset: startOffset,
-      rawByteLength: dataOffset || 20
+      rawByteLength: safeDataOffset
     }
   } catch (e) {
     error = (e as Error).message
@@ -246,7 +254,9 @@ function decodeUDP(view: DataView, offset: number): ParsedLayer {
     if (view.byteLength < offset + 8) throw new Error('UDP header truncated')
     fields.push(field('srcPort', 'Source Port', view.getUint16(offset), offset, 2))
     fields.push(field('dstPort', 'Destination Port', view.getUint16(offset + 2), offset + 2, 2))
-    fields.push(field('length', 'Length', view.getUint16(offset + 4), offset + 4, 2))
+    const udpLength = view.getUint16(offset + 4)
+    if (udpLength < 8) throw new Error(`UDP length field ${udpLength} is below minimum of 8`)
+    fields.push(field('length', 'Length', udpLength, offset + 4, 2))
     fields.push(
       field(
         'checksum',
@@ -259,6 +269,16 @@ function decodeUDP(view: DataView, offset: number): ParsedLayer {
         2
       )
     )
+
+    // rawByteLength = UDP header only (8 bytes).
+    // The anonymizer uses rawByteOffset + rawByteLength as payloadStart,
+    // so this must be header-only to correctly identify where payload begins.
+    return {
+      protocol: 'UDP',
+      fields,
+      rawByteOffset: startOffset,
+      rawByteLength: 8
+    }
   } catch (e) {
     error = (e as Error).message
   }
@@ -267,7 +287,7 @@ function decodeUDP(view: DataView, offset: number): ParsedLayer {
     protocol: 'UDP',
     fields,
     rawByteOffset: startOffset,
-    rawByteLength: Math.max(0, view.byteLength - startOffset),
+    rawByteLength: Math.min(8, Math.max(0, view.byteLength - startOffset)),
     ...(error ? { error } : {})
   }
 }
@@ -293,6 +313,16 @@ function decodeICMP(view: DataView, offset: number): ParsedLayer {
         2
       )
     )
+
+    // rawByteLength = ICMP header only (4 bytes).
+    // The anonymizer uses rawByteOffset + rawByteLength as payloadStart,
+    // so this must be header-only to correctly identify where payload begins.
+    return {
+      protocol: 'ICMP',
+      fields,
+      rawByteOffset: startOffset,
+      rawByteLength: 4
+    }
   } catch (e) {
     error = (e as Error).message
   }
@@ -301,7 +331,7 @@ function decodeICMP(view: DataView, offset: number): ParsedLayer {
     protocol: 'ICMP',
     fields,
     rawByteOffset: startOffset,
-    rawByteLength: Math.max(0, view.byteLength - startOffset),
+    rawByteLength: Math.min(4, Math.max(0, view.byteLength - startOffset)),
     ...(error ? { error } : {})
   }
 }
@@ -447,9 +477,7 @@ function decodeARP(view: DataView, offset: number): ParsedLayer {
 // ─── Transport layer dispatcher ───────────────────────────────────────────────
 
 function decodeTransport(view: DataView, offset: number, ipProtocol: number): ParsedLayer | null {
-  if (ipProtocol === 17) {
-    return decodeUDP(view, offset)
-  }
+  if (ipProtocol === 17) return decodeUDP(view, offset)
   if (ipProtocol === 6) return decodeTCP(view, offset)
   if (ipProtocol === 1 || ipProtocol === 58) return decodeICMP(view, offset) // 58 = ICMPv6
   return null
@@ -575,8 +603,13 @@ export const Parser = {
           const srcPort = transport.fields.find((f) => f.name === 'srcPort')?.value as number
           const dstPort = transport.fields.find((f) => f.name === 'dstPort')?.value as number
           if (srcPort === 53 || dstPort === 53) {
+            // Gate on UDP-declared payload length, not raw buffer length.
+            // udpLength field = total UDP length (header + payload); payload = udpLength - 8.
+            // Require at least 12 bytes of payload for a valid DNS header.
+            const udpLength = transport.fields.find((f) => f.name === 'length')?.value
+            const udpPayloadLength = typeof udpLength === 'number' ? udpLength - 8 : 0
             const udpHeaderEnd = offset + 8
-            if (udpHeaderEnd < buf.byteLength) {
+            if (udpPayloadLength >= 12 && udpHeaderEnd + 12 <= buf.byteLength) {
               layers.push(decodeDNS(view, udpHeaderEnd))
             }
           }
@@ -612,6 +645,10 @@ export const Parser = {
    *   ts_usec  (4 bytes): (timestamp % 1000) * 1000
    *   incl_len (4 bytes): actual captured bytes
    *   orig_len (4 bytes): original wire length
+   *
+   * NOTE: Callers must validate that `packet.rawData` is present before calling.
+   * If rawData is absent, the record will contain a correct header but zero frame bytes,
+   * producing a silently corrupt PCAP entry. Use the guard in pcap:export as the pattern.
    */
   print(packet: ParsedPacket): Buffer {
     const rawData = packet.rawData ? Buffer.from(packet.rawData) : Buffer.alloc(0)

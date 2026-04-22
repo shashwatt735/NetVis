@@ -4,10 +4,10 @@ A cross-platform desktop application for educational network packet visualizatio
 
 ## 🎯 Project Status
 
-**Current Phase:** Phase 1 - Core Pipeline Integration  
-**Status:** ✅ Tasks 1-11 Complete, Checkpoint Passed  
-**Test Coverage:** 86/86 tests passing  
-**Code Quality:** ESLint clean, TypeScript strict mode
+**Current Phase:** Phase 1 core implemented; stabilization sprint complete
+**Status:** Ready to proceed with remaining Phase 1 tasks (22-28)
+**Test Coverage:** 332 tests passing (28 test files)
+**Code Quality:** TypeScript strict mode; typecheck, tests, and build passing; lint cleanup still pending
 
 See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed progress.
 
@@ -23,29 +23,34 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture docum
 
 ## ✨ Features
 
-### Implemented (Phase 1)
+### Implemented (Phase 1 Core)
 
 - ✅ Live packet capture (libpcap/Npcap)
-- ✅ PCAP file import/export
+- ✅ PCAP file import/export (backend support implemented; renderer/UI wiring still partial)
 - ✅ Simulated replay with speed control (0.5×, 1×, 2×, 5×)
 - ✅ Protocol parsing (Ethernet, IPv4/IPv6, TCP/UDP/ICMP/DNS/ARP)
-- ✅ Payload anonymization (HMAC-based pseudonymization)
+- ✅ Payload anonymization (HMAC-based pseudonymization; UDP/ICMP payload boundary corrected)
 - ✅ Ring buffer with configurable capacity (1K-100K packets)
 - ✅ Structured logging with rotation
 - ✅ Persistent settings store
 - ✅ Full IPC bridge with input validation
+- ✅ Zustand store and renderer bootstrap
+- ✅ Tailwind CSS and Visual Design System
+- ✅ Packet list with virtualization
+- ✅ Protocol chart and timeline visualizations
+- ✅ Packet detail inspector
+- ✅ Filter engine with BNF grammar
+- ✅ Educational layer with field explanations
+- ✅ AppShell layout, Toolbar, StatusBar (overflow notice wired to real events)
 
-### Planned (Phase 1 Remaining)
+### In Progress (Remaining Phase 1 Tasks)
 
-- 🔄 Zustand store and renderer bootstrap
-- 🔄 MUI theme and visual design system
-- 🔄 Packet list with virtualization
-- 🔄 Protocol chart and timeline visualizations
-- 🔄 Packet detail inspector
-- 🔄 Filter engine with BNF grammar
-- 🔄 Educational layer with field explanations
-- 🔄 Guided challenges
-- 🔄 Onboarding experience
+- 🔄 Task 22: PCAP UI wiring and status integration incomplete
+- 🔄 Task 23: Onboarding — WelcomeScreen
+- 🔄 Task 24: Advanced Settings Panel (partially implemented)
+- 🔄 Task 25: Guided challenges
+- 🔄 Task 26: Privilege minimization setup
+- 🔄 Task 28: Property-based test suite completion (P1, P15 required)
 
 ### Planned (Phase 2)
 
@@ -58,12 +63,97 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture docum
 
 ### Prerequisites
 
-- **Node.js:** 18.x or higher
+- **Node.js:** 22.x or higher (tested on 24.x)
 - **npm:** 9.x or higher
-- **Platform-specific:**
-  - **Windows:** [Npcap](https://npcap.com/) (for live capture)
-  - **Linux:** libpcap + capabilities (`setcap cap_net_raw,cap_net_admin=eip`)
-  - **macOS:** libpcap (built-in) + sudo or System Preferences permissions
+
+#### Platform-Specific Requirements for Live Capture
+
+NetVis requires elevated privileges to capture network packets. Each platform has different requirements:
+
+##### Windows
+
+1. **Install Npcap:**
+   - Download and install [Npcap](https://npcap.com/) (WinPcap successor)
+   - During installation, select "Install Npcap in WinPcap API-compatible Mode"
+
+2. **User Group Membership:**
+   - NetVis requires membership in the "Npcap Users" group
+   - To add your user to this group:
+     1. Open Computer Management (Win+X → Computer Management)
+     2. Navigate to Local Users and Groups → Groups
+     3. Double-click "Npcap Users"
+     4. Click "Add" and add your username
+     5. Log out and log back in for changes to take effect
+
+3. **Alternative: Run as Administrator:**
+   - Right-click NetVis and select "Run as Administrator"
+   - This is less secure than using the Npcap Users group
+
+**If you see a permission error:** Verify Npcap is installed and you're in the Npcap Users group, or run as Administrator.
+
+##### Linux
+
+1. **Install libpcap:**
+   ```bash
+   # Debian/Ubuntu
+   sudo apt-get install libpcap-dev
+   
+   # Fedora/RHEL
+   sudo dnf install libpcap-devel
+   
+   # Arch
+   sudo pacman -S libpcap
+   ```
+
+2. **Grant Capabilities (Recommended):**
+   Instead of running as root, grant specific capabilities to the NetVis binary:
+   ```bash
+   sudo setcap cap_net_raw,cap_net_admin=eip /path/to/netvis
+   ```
+   
+   Replace `/path/to/netvis` with the actual path to your NetVis executable.
+   
+   **Example for AppImage:**
+   ```bash
+   sudo setcap cap_net_raw,cap_net_admin=eip ./NetVis-*.AppImage
+   ```
+
+3. **Alternative: Run with sudo:**
+   ```bash
+   sudo ./netvis
+   ```
+   This is less secure than using capabilities.
+
+**If you see a permission error:** Run the `setcap` command above or use `sudo`.
+
+##### macOS
+
+1. **libpcap (Built-in):**
+   - macOS includes libpcap by default, no installation needed
+
+2. **Grant Permissions:**
+   
+   **Option 1: Run with sudo (Quick but less secure):**
+   ```bash
+   sudo /Applications/NetVis.app/Contents/MacOS/NetVis
+   ```
+
+   **Option 2: Grant Full Disk Access (Recommended):**
+   1. Open System Preferences → Security & Privacy → Privacy
+   2. Select "Full Disk Access" from the left sidebar
+   3. Click the lock icon and authenticate
+   4. Click "+" and add NetVis or your terminal application
+   5. Restart NetVis
+
+   **Option 3: BPF Device Permissions:**
+   ```bash
+   sudo chmod o+r /dev/bpf*
+   ```
+   Note: This must be repeated after each reboot.
+
+**If you see a permission error:** Use one of the options above. Full Disk Access is the most user-friendly for regular use.
+
+**Note:** A privileged helper using SMJobBless is planned for a future release to provide a more seamless macOS experience.
 
 ### Installation
 
@@ -122,9 +212,9 @@ npm run test:coverage
 
 ### Test Coverage
 
-- **9 test files, 86 tests**
-- **Property-based tests:** P2, P3, P4, P5, P6, P16, P17 (100+ iterations each)
-- **Unit tests:** Boundary conditions, persistence, validation
+- **28 test files, 332 tests passing**
+- **Property-based tests:** Parser round-trip, anonymizer determinism, buffer invariants, filter engine, simulated replay, protocol distribution, timeline buckets, and more (100+ iterations each)
+- **Unit tests:** Boundary conditions, persistence, validation, IPC handlers, bugfix verification, store actions
 
 ## 📚 Documentation
 
@@ -138,10 +228,10 @@ npm run test:coverage
 
 ### Core
 
-- **Electron:** 34.x - Cross-platform desktop framework
-- **React:** 18.x - UI framework
+- **Electron:** 40.x - Cross-platform desktop framework
+- **React:** 19.x - UI framework
 - **TypeScript:** 5.x - Type-safe development (strict mode)
-- **Vite:** 6.x - Build tool and dev server
+- **Vite:** 7.x - Build tool and dev server
 
 ### Main Process
 
@@ -155,6 +245,8 @@ npm run test:coverage
 
 - **Vitest:** Test runner
 - **fast-check:** Property-based testing
+- **jsdom:** DOM environment for renderer tests
+- **@testing-library/react:** React component testing utilities
 
 ### Code Quality
 

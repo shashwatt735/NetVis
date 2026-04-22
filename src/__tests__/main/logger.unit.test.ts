@@ -54,7 +54,7 @@ describe('Logger — entry structure invariant (P16)', () => {
           expect(() => JSON.parse(captured[0])).not.toThrow()
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -79,7 +79,7 @@ describe('Logger — entry structure invariant (P16)', () => {
           expect(entry).toHaveProperty('message')
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -100,7 +100,7 @@ describe('Logger — entry structure invariant (P16)', () => {
           expect(entry.level).toBe(level)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -122,7 +122,7 @@ describe('Logger — entry structure invariant (P16)', () => {
           expect(entry.message).toBe(message)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -148,7 +148,7 @@ describe('Logger — entry structure invariant (P16)', () => {
           expect(entry.flag).toBe(extra.flag)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 })

@@ -1,7 +1,7 @@
 # NetVis Architecture Documentation
 
-**Version:** 1.0  
-**Last Updated:** 2026-04-01
+**Version:** 1.4  
+**Last Modified:** 2026-04-22
 
 ---
 
@@ -57,12 +57,46 @@ The Anonymizer executes entirely within the main process. Only anonymized data c
 Data flows in one direction only:
 
 ```
-Capture_Engine → Parser → Anonymizer → Packet_Buffer → IPC_Bridge → Renderer
+Capture_Engine → Parser → Packet_Buffer → [IPC boundary: Anonymizer] → IPC_Bridge → Renderer
 ```
 
 ### ARCH-06: TypeScript Strict Mode
 
 All source files use TypeScript strict mode for maximum type safety.
+
+### ARCH-07: One Owner Per Request Lifecycle
+
+The application enforces one owner per request lifecycle: timeout registration, listener registration, cleanup, and completion belong to the same subsystem. No shared ownership. No silent handoffs.
+
+**Example:** When `CaptureController.startLive()` initiates a capture request, it owns:
+- The timeout for startup completion
+- The listener for worker ack messages
+- Cleanup on error or completion
+- Success/failure notification to callers
+
+**Rationale:** Prevents resource leaks, double-cleanup bugs, and ambiguous responsibility for error handling.
+
+### ARCH-08: One Owner Per Push Channel
+
+Each renderer-visible push channel has exactly one authoritative emitter in the privileged domain. Push channels such as `packet:batch`, `capture:status`, `buffer:overflow`, and `buffer:stats` must not be emitted from multiple subsystems or duplicated in handler-level optimistic flows.
+
+**Example:** Only `IpcBatcher` emits `packet:batch`. IPC handlers may return invoke results, but they do not own renderer-visible push-channel truth.
+
+**Rationale:** Prevents duplicate events, race conditions, and inconsistent state in the renderer.
+
+### ARCH-09: PacketBuffer Storage Invariant
+
+The Packet_Buffer stores `ParsedPacket` structures in the privileged domain; only `AnonPacket` crosses the IPC_Bridge to the renderer.
+
+**Data Flow:**
+```
+Worker: RawPacket → Parser → ParsedPacket
+Main: Packet_Buffer.push(ParsedPacket)
+IPC Boundary: Anonymizer.anonymize(ParsedPacket) → AnonPacket
+Renderer: receives AnonPacket only
+```
+
+**Rationale:** Maintains the security boundary. The privileged domain retains the canonical packet form (`ParsedPacket`). Anonymization happens at the IPC send boundary, not at storage time.
 
 ---
 
@@ -70,71 +104,68 @@ All source files use TypeScript strict mode for maximum type safety.
 
 ### Main Process
 
-The main process owns all privileged operations:
+The main process owns all privileged operations, including live packet capture:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Main Process                            │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              Capture Engine                          │  │
-│  │  ┌────────────┐  ┌──────────────┐  ┌─────────────┐ │  │
-│  │  │ CapSource  │  │ PcapFile     │  │ Simulated   │ │  │
-│  │  │ (live)     │  │ Source       │  │ Replay      │ │  │
-│  │  └────────────┘  └──────────────┘  └─────────────┘ │  │
-│  │         ↓                ↓                 ↓         │  │
-│  │  ┌──────────────────────────────────────────────┐  │  │
-│  │  │      CaptureController (state machine)       │  │  │
-│  │  └──────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                          ↓                                  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │                    Parser                            │  │
+┌───────────────────────────────────────────────────────────┐
+│                      Main Process                         │
+│                                                           │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │              Capture Engine                         │  │
+│  │  ┌────────────┐                                     │  │
+│  │  │ CapSource  │  ← Live capture runs HERE (main     │  │
+│  │  │ (live)     │    thread) — not in worker thread   │  │
+│  │  └────────────┘                                     │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                          ↓                                │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │                    Parser                           │  │
 │  │  Ethernet → IPv4/IPv6 → TCP/UDP/ICMP/DNS/ARP        │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                          ↓                                  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │                  Anonymizer                          │  │
-│  │  HMAC session key, payload pseudonymization         │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                          ↓                                  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │                Packet_Buffer                         │  │
-│  │  Ring buffer (1K-100K packets, default 10K)         │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                          ↓                                  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │                 IPC Handlers                         │  │
-│  │  Zod validation, error normalization                │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                                                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │   Logger     │  │  Settings    │  │  IpcBatcher  │     │
-│  │   (pino)     │  │  Store       │  │  (50ms/100p) │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-└─────────────────────────────────────────────────────────────┘
+│  └─────────────────────────────────────────────────────┘  │
+│                          ↓                                │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │                Packet_Buffer                        │  │
+│  │  Stores ParsedPacket (1K-100K packets, default 10K) │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                          ↓                                │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │                  Anonymizer                         │  │
+│  │  IPC-boundary transformation: ParsedPacket →        │  │
+│  │  AnonPacket for renderer delivery                   │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                          ↓                                │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │                 IPC Handlers / IpcBatcher           │  │
+│  │  Zod validation, batching, renderer delivery        │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                                                           │
+│  ┌──────────────┐  ┌──────────────┐                       │
+│  │   Logger     │  │  Settings    │                       │
+│  │   (pino)     │  │  Store       │                       │
+│  └──────────────┘  └──────────────┘                       │
+└───────────────────────────────────────────────────────────┘
                             ↓
                     ┌───────────────┐
                     │   Preload     │
                     │ contextBridge │
                     └───────────────┘
                             ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    Renderer Process                          │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              Zustand Store                           │  │
-│  │  packets, selectedPacket, filterExpression, etc.    │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                          ↓                                  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │                React Components                      │  │
+┌──────────────────────────────────────────────────────────┐
+│                    Renderer Process                      │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │              Zustand Store                         │  │
+│  │  packets, selectedPacket, filterExpression, etc.   │  │
+│  └────────────────────────────────────────────────────┘  │
+│                          ↓                               │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │                React Components                    │  │
 │  │  ┌────────────┐  ┌──────────────┐  ┌────────────┐  │  │
 │  │  │ Packet     │  │ Protocol     │  │ Packet     │  │  │
 │  │  │ List       │  │ Chart        │  │ Detail     │  │  │
 │  │  └────────────┘  └──────────────┘  └────────────┘  │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+│  └────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ### Preload Script
@@ -152,7 +183,7 @@ The renderer process is a standard React application with:
 - No Node.js access (enforced by `nodeIntegration: false`)
 - Access only to explicitly exposed IPC functions
 - Zustand for state management
-- MUI for UI components
+- Radix UI for components
 
 ---
 
@@ -164,12 +195,14 @@ The renderer process is a standard React application with:
 
 **Components:**
 
-- **CapSource:** Live capture via `cap` library
-- **PcapFileSource:** Streaming PCAP file reader via `pcap-parser`
-- **SimulatedReplaySource:** Replay with configurable speed (0.5×, 1×, 2×, 5×)
-- **CaptureController:** State machine managing capture lifecycle
+- **CapSource:** Live capture via `cap` library — **runs on the main thread** (not the worker). The `cap` library's `pcap_dispatch` spawns a native OS background thread whose callbacks fire into the Node.js environment. In a `worker_threads` Worker on Windows with Npcap + Electron 40.x, that environment pointer becomes invalid, causing an `(env) != nullptr` assertion crash. Running `CapSource` on the stable, long-lived main-process environment eliminates this crash entirely.
+- **PcapFileSource:** Streaming PCAP file reader via `pcap-parser` — runs in worker thread
+- **SimulatedReplaySource:** Replay with configurable speed (0.5×, 1×, 2×, 5×) — runs in worker thread
+- **CaptureController:** State machine managing file/simulated capture lifecycle — runs in worker thread
 - **WorkerSupervisor:** Restarts worker on unexpected exit (500ms delay)
 - **IpcBatcher:** Batches packets for efficient IPC (50ms or 100 packets)
+
+**Link-type normalization:** `cap.open()` returns a string (e.g. `'ETHERNET'`), not a number. `CapSource` normalizes this via an explicit `LINK_TYPE_MAP` to the numeric libpcap constants the parser expects. Unknown link types are logged once and mapped to `-1`, causing the parser to produce a single `OTHER` layer.
 
 **State Machine:**
 
@@ -206,6 +239,7 @@ idle → simulated → idle
 - All byte reads are bounds-checked
 - Malformed layers are annotated, never thrown
 - Unknown protocols → `protocol: 'OTHER'`, preserve byte length
+- `rawByteLength` on transport layers (TCP/UDP/ICMP) is **header length only** — the anonymizer uses `rawByteOffset + rawByteLength` as `payloadStart`, so this invariant must be maintained
 
 **Round-Trip Property:**
 
@@ -231,7 +265,7 @@ pseudonym(data) = sha256(SESSION_KEY || data).slice(0, 8)
 
 - Session key never exported, logged, or written to disk
 - Transport-layer payload → pseudonym
-- DNS answer IPs → pseudonym (query name and type preserved)
+- DNS: query name and type preserved; answer records not parsed in stabilization scope
 - All protocol headers preserved unchanged (metadata, not payload)
 
 **Security:**
@@ -242,6 +276,8 @@ pseudonym(data) = sha256(SESSION_KEY || data).slice(0, 8)
 ### Packet_Buffer
 
 **Purpose:** In-memory ring buffer for captured packets.
+
+**Canonical packet rule:** `Packet_Buffer` stores `ParsedPacket`, not `AnonPacket`. Renderer-facing `AnonPacket` objects are created only at the IPC send boundary.
 
 **Implementation:**
 
@@ -326,27 +362,25 @@ process.on('uncaughtException', (err) => {
    ↓
 2. Renderer → IPC → Main: capture:start { iface }
    ↓
-3. Main: CaptureController.startLive(iface)
+3. Main: CaptureEngine.startCapture(iface)
    ↓
-4. Main: CapSource.start() → libpcap/Npcap
+4. Main: CapSource.start() → libpcap/Npcap  ← runs on main thread
    ↓
-5. Packet arrives → CapSource callback
+5. Packet arrives → CapSource callback (main thread)
    ↓
-6. RawPacket → Parser.parse()
+6. Main: RawPacket → Parser.parse()  ← parser called on main thread for live capture
    ↓
-7. ParsedPacket → Anonymizer.anonymize()
+7. Main: Packet_Buffer.push(ParsedPacket)
    ↓
-8. AnonPacket → Packet_Buffer.push()
+8. On send: Anonymizer.anonymize(ParsedPacket) → AnonPacket
    ↓
-9. Packet_Buffer emits 'change'
+9. IpcBatcher accumulates AnonPacket[] (50ms or 100 packets)
    ↓
-10. IpcBatcher accumulates packets (50ms or 100 packets)
+10. Main → IPC → Renderer: packet:batch [AnonPacket[]]
    ↓
-11. Main → IPC → Renderer: packet:batch [AnonPacket[]]
+11. Renderer: Zustand store.addPackets()
    ↓
-12. Renderer: Zustand store.addPackets()
-   ↓
-13. React re-renders Packet_List, Protocol_Chart, etc.
+12. React re-renders Packet_List, Protocol_Chart, etc.
 ```
 
 ### PCAP File Import Flow
@@ -360,13 +394,15 @@ process.on('uncaughtException', (err) => {
    ↓
 4. User selects file
    ↓
-5. Main: PcapFileSource.start(filePath)
+5. Worker: PcapFileSource.start(filePath)
    ↓
-6. Stream packets through Parser → Anonymizer → Buffer
+6. Worker: stream RawPacket → Parser → ParsedPacket
    ↓
-7. Batch send to renderer via packet:batch
+7. Main: Packet_Buffer.push(ParsedPacket)
    ↓
-8. Renderer updates UI
+8. On send: Anonymizer → AnonPacket → IpcBatcher
+   ↓
+9. Renderer updates UI via packet:batch
 ```
 
 ### Settings Update Flow
@@ -448,7 +484,7 @@ process.on('uncaughtException', (err) => {
 
 ---
 
-## Threading Model
+### Threading Model
 
 ### Main Thread
 
@@ -457,34 +493,50 @@ process.on('uncaughtException', (err) => {
 - Settings_Store
 - Logger
 - Packet_Buffer
+- Anonymizer
+- IpcBatcher
+- **CapSource (live capture)** — moved here from worker thread for Npcap/Windows native thread safety
 
 ### Worker Thread
 
-- Capture_Engine (CapSource, PcapFileSource, SimulatedReplaySource)
+- PcapFileSource (file import)
+- SimulatedReplaySource (simulated replay)
+- CaptureController (file/simulated state machine)
 - Parser
-- Anonymizer
-- WorkerSupervisor manages lifecycle
 
-**Rationale:**
+**Rationale for CapSource on main thread:**
 
-- Capture callbacks can fire at 1,000+ Hz
-- Parsing and anonymization are CPU-intensive
-- Offloading to worker prevents main thread blocking
+The `cap` library uses `pcap_dispatch` which spawns a native OS background thread. That thread fires callbacks back into Node.js via `node::InternalMakeCallback`. When `cap` runs inside a `worker_threads` Worker, the callback uses the worker's `Environment*` pointer. On Windows with Npcap + Electron 40.x, that pointer becomes invalid after a few seconds, triggering the `(env) != nullptr` assertion crash. The main process has a stable, long-lived Node.js environment that persists for the entire app lifetime, eliminating the crash.
+
+File and simulated replay sources remain in the worker thread since they use Node.js streams (`fs.ReadStream`, `pcap-parser`) which are safe in workers.
 
 **Communication:**
 
 ```
 Main Thread                Worker Thread
-     │                          │
-     ├─ start-live ────────────>│
-     │                          ├─ CapSource.start()
-     │<──── packet-batch ───────┤
-     │<──── stopped ────────────┤
-     │<──── error ──────────────┤
-     ├─ stop ──────────────────>│
-     │                          ├─ CapSource.stop()
-     │<──── stopped ────────────┤
+     │                           │
+     │  (live capture: CapSource runs directly on main thread)
+     │                           │
+     ├─ start-file {requestId} ─>│
+     │                           ├─ CaptureController.startFile()
+     │<── command-ok {requestId}─┤  (startup confirmed)
+     │<── packet-batch ──────────┤  (streaming packets)
+     │<── command-complete ──────┤  (streaming ended — used by pcap:import)
+     │                           │
+     ├─ start-simulated ────────>│
+     │                           ├─ CaptureController.startSimulated()
+     │<── command-ok {requestId}─┤
+     │<── packet-batch ──────────┤
+     │<── command-complete ──────┤
+     │                           │
+     ├─ stop {requestId} ───────>│  (file/simulated only)
+     │<── command-ok {requestId}─┤
+     │<── stopped ───────────────┤
 ```
+
+**Command/Ack Protocol (BUGFIX-01):**
+
+Every worker command carries a `requestId` (UUID). The worker replies with `command-ok`, `command-error`, or `command-complete`. `CaptureEngine` stores pending promises in a `Map<requestId, {resolve, reject}>` and settles them only on the matching ack — no fire-and-forget.
 
 ### Renderer Thread
 
@@ -498,21 +550,23 @@ Main Thread                Worker Thread
 
 ### Invoke Channels (Renderer → Main)
 
-| Channel                  | Payload                                    | Returns              | Description                         |
-| ------------------------ | ------------------------------------------ | -------------------- | ----------------------------------- |
-| `capture:getInterfaces`  | —                                          | `NetworkInterface[]` | Enumerate network interfaces        |
-| `capture:start`          | `{ iface: string }`                        | `void`               | Start live capture                  |
-| `capture:stop`           | —                                          | `void`               | Stop capture                        |
-| `capture:startSimulated` | `{ path: string, speed: SpeedMultiplier }` | `void`               | Start simulated replay              |
-| `pcap:import`            | —                                          | `ImportResult`       | Import PCAP file (instant load)     |
-| `pcap:startFile`         | `{ path: string }`                         | `void`               | Stream PCAP file through pipeline   |
-| `pcap:export`            | —                                          | `ExportResult`       | Export buffer to PCAP file          |
-| `buffer:clear`           | —                                          | `void`               | Clear packet buffer                 |
-| `buffer:setCapacity`     | `{ capacity: number }`                     | `void`               | Resize buffer (1000-100000)         |
-| `buffer:getAll`          | —                                          | `AnonPacket[]`       | Get all packets (initial load)      |
-| `settings:get`           | —                                          | `Settings`           | Get current settings                |
-| `settings:set`           | `Partial<Settings>`                        | `Settings`           | Update settings                     |
-| `log:openFolder`         | —                                          | `void`               | Open log directory in file explorer |
+| Channel                  | Payload                                    | Returns                | Description                         |
+| ------------------------ | ------------------------------------------ | ---------------------- | ----------------------------------- |
+| `capture:getInterfaces`  | —                                          | `InterfaceResult`      | Enumerate interfaces (`{ ok, interfaces }` or `{ ok: false, error }`) |
+| `capture:start`          | `{ iface: string }`                        | `void`                 | Start live capture (resolves after worker ack) |
+| `capture:stop`           | —                                          | `void`                 | Stop capture (resolves after worker ack) |
+| `capture:startSimulated` | `{ path: string, speed: SpeedMultiplier }` | `void`                 | Start simulated replay (FILE-SEC-01 + worker ack) |
+| `pcap:import`            | —                                          | `ImportResult`         | Import PCAP file (resolves on `command-complete`) |
+| `pcap:selectFile`        | —                                          | `{ ok, path? }`        | Open file dialog to select PCAP file |
+| `pcap:startFile`         | `{ path: string }`                         | `void`                 | Stream PCAP file through pipeline   |
+| `pcap:export`            | —                                          | `ExportResult`         | Export buffer to PCAP file          |
+| `buffer:clear`           | —                                          | `void`                 | Clear packet buffer                 |
+| `buffer:setCapacity`     | `{ capacity: number }`                     | `void`                 | Resize buffer (1000–100000)         |
+| `buffer:getAll`          | —                                          | `AnonPacket[]`         | Get all packets (initial load)      |
+| `filter:apply`           | `{ expression: string }`                   | `{ packets, error }`   | Filter packets by expression        |
+| `settings:get`           | —                                          | `Settings`             | Get current settings                |
+| `settings:set`           | `Partial<Settings>`                        | `Settings`             | Update settings                     |
+| `log:openFolder`         | —                                          | `void`                 | Open log directory in file explorer |
 
 ### Push Channels (Main → Renderer)
 
@@ -608,11 +662,15 @@ interface CaptureError {
 - Reduces IPC overhead from 1,000 calls/sec to ≤20 calls/sec
 - Latency: ≤100ms (meets PERF-02)
 
+### Renderer Load Control
+
+NetVis prevents high packet rates from turning into renderer lag by decoupling packet ingestion from packet presentation. Packets are captured and parsed off the UI thread, stored in the main process as `ParsedPacket`, converted to `AnonPacket` only at the IPC boundary, and then delivered to the renderer in batches rather than one-by-one. On the renderer side, packet rows are virtualized and visualization components operate on derived or aggregated data instead of rendering every stored packet directly. This means that a high packet arrival rate does not translate into an equally high React render rate, which is how the application preserves responsiveness while still enforcing the anonymization boundary.
+
 #### Worker Thread
 
-- Offload capture, parsing, anonymization to worker
-- Main thread only handles IPC and buffer management
-- Prevents main thread blocking
+- Offload capture and parsing to worker
+- Main thread owns Packet_Buffer, anonymization, and IPC delivery
+- Prevents main thread blocking while preserving the privileged anonymization boundary
 
 #### Ring Buffer
 
@@ -667,6 +725,6 @@ interface CaptureError {
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** 2026-04-01  
+**Document Version:** 1.3  
+**Last Updated:** 2026-04-17  
 **Maintained By:** NetVis Development Team

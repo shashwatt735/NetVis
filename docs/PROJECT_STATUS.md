@@ -1,362 +1,312 @@
-# NetVis Project Status
+# Project Status
 
-**Last Updated:** 2026-04-01  
-**Current Phase:** Phase 1 - Core Pipeline Integration  
-**Status:** ✅ Tasks 1-11 Complete, Checkpoint Passed
+**Last Modified:** 2026-04-22
 
----
-
-## Overview
-
-NetVis is a cross-platform desktop application for educational network packet visualization, built with Electron, React, and TypeScript. It enables beginner networking students to capture live network packets, load saved PCAP files, and explore protocol behavior through real-time visualizations.
+→ **Product Overview:** See `.kiro/steering/product.md`
+→ **Architecture:** See `docs/ARCHITECTURE.md`
+→ **Tech Stack:** See `.kiro/steering/tech.md`
 
 ---
 
-## Architecture Summary
+## Current Phase
 
-### Process Boundary Model
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Main Process                            │
-│  ┌──────────────┐  ┌────────┐  ┌────────────┐  ┌─────────┐ │
-│  │ Capture      │→ │ Parser │→ │ Anonymizer │→ │ Packet  │ │
-│  │ Engine       │  │        │  │            │  │ Buffer  │ │
-│  └──────────────┘  └────────┘  └────────────┘  └─────────┘ │
-│         ↓              ↓             ↓              ↓        │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              IPC Bridge (contextBridge)              │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    Renderer Process                          │
-│  ┌──────────┐  ┌────────────┐  ┌──────────────────────┐    │
-│  │ Zustand  │→ │ Packet     │  │ Visualization        │    │
-│  │ Store    │  │ List       │  │ Suite                │    │
-│  └──────────┘  └────────────┘  └──────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Security Architecture
-
-- **ARCH-01:** IPC Bridge exposes only explicitly declared functions via `contextBridge`
-- **ARCH-02:** `nodeIntegration: false`, `contextIsolation: true` enforced
-- **ARCH-03:** No remote URLs loaded in BrowserWindow
-- **ARCH-04:** Anonymizer runs entirely in main process
-- **ARCH-05:** Unidirectional data flow enforced
-- **ARCH-06:** TypeScript strict mode across all source files
+**Phase 1 + Phase 2** — Complete  
+All core pipeline, UI, visualizations, and educational features are implemented and integrated.
 
 ---
 
-## Completed Tasks (Phase 1)
+## Completed Work
 
-### ✅ Task 1: Project Scaffold and Tooling
+### Phase 1 Backend (Tasks 1–11) ✅
 
-- TypeScript strict mode configured
-- ESLint and Prettier integrated
-- Build profiles: dev, staging, production
-- VITE_PHASE environment variable support
+- ✅ Capture Engine (live on main thread, file/simulated in worker)
+- ✅ Parser (Ethernet → IPv4/IPv6 → TCP/UDP/ICMP/DNS/ARP) with header-size and length validation
+- ✅ Anonymizer (HMAC-based payload pseudonymization, main-process IPC boundary)
+- ✅ Packet Buffer (ring buffer, 1K–100K capacity)
+- ✅ Logger (Pino, rotation, structured JSON)
+- ✅ Settings Store (persistent JSON)
+- ✅ IPC Layer (Zod validation, contextBridge)
+- ✅ IPC Batching (50ms/100 packets)
+- ✅ Error Normalization (platform-specific hints)
+- ✅ Filter Engine (lexer, recursive-descent parser, evaluator, `ts` field)
 
-### ✅ Task 2: Security Foundations
+### Phase 1 UI (Tasks 13–21) ✅
 
-- BrowserWindow security configured
-- CSP header via `session.webRequest.onHeadersReceived`
-- Preload script skeleton with `contextBridge`
-- Zod schemas for IPC validation
+- ✅ Zustand Store + Renderer Bootstrap
+- ✅ Tailwind CSS + Design System (Sora/Space Mono fonts, token system, Radix UI)
+- ✅ AppShell layout (Toolbar, StatusBar, InterfaceSelector, CaptureControls, FilterBar)
+- ✅ Packet List with virtualization (@tanstack/virtual, keyboard nav, ARIA)
+- ✅ Packet Detail Inspector (collapsible tree, hex strip, slide-in animation)
+- ✅ Field Explanations + HelpIcon (all protocol fields, help-text.json)
+- ✅ Protocol Chart (Recharts PieChart, protocol colors, accessible table)
+- ✅ Packet Flow Timeline (60-bucket BarChart, time-range filter on click)
 
-### ✅ Task 3: Capture Engine - Core Types
+### Phase 1 Completion + Stabilization (Tasks 21.5–21.6) ✅
 
-- `RawPacket`, `CaptureError`, `CaptureErrorCode` types
-- Error normalization with platform-specific hints
-- Windows/Linux/macOS error mapping
+All capture control IPC handlers, buffer management, simulated replay UI, worker restart rebinding, settings bootstrap, path hardening, status flow, buffer stats throttling, and overflow notifications are complete.
 
-### ✅ Task 4: Capture Engine - PacketSource Implementations
+### Phase 1 Remaining Tasks (22–28) ✅
 
-- **CapSource:** Live capture via libpcap/Npcap
-  - Buffer copy to prevent reuse issues
-  - Truncation drop handling
-  - Idempotent stop
-- **PcapFileSource:** Streaming PCAP file reader
-  - Correct microsecond timestamp handling
-  - MAX_FRAME_SIZE guard (65535 bytes)
-- **SimulatedReplaySource:** Replay with speed control
-  - Streaming mode (no full file preload)
-  - Pause/resume support
-  - Delay clamped to 2000ms
+- ✅ Task 22: PCAP import/export (backend + renderer wiring complete)
+- ✅ Task 23: Onboarding — WelcomeScreen
+- ✅ Task 24: AdvancedSettingsPanel (buffer capacity, theme, reduced motion, log folder)
+- ✅ Task 25: Guided challenges (5 challenges, persistence, debounced evaluation)
+- ✅ Task 26: Privilege minimization (platform-specific error messages)
 
-### ✅ Task 5: Capture Engine - Controller and Batching
+### Phase 2 Visualizations (Tasks 29–33) ✅
 
-- **CaptureController:** State machine (idle → live/file/simulated → idle)
-- **WorkerSupervisor:** 500ms restart on unexpected exit
-- **IpcBatcher:** 50ms / 100-packet flush policy
-- Worker thread message protocol
-- Property tests: P2 (ring-buffer capacity), P3 (simulated order)
+- ✅ Task 29: OSI Layer Diagram (7-layer stack, active layer highlighting, keyboard nav)
+- ✅ Task 30: IP Flow Map (D3 force simulation, node/edge click → filter)
+- ✅ Task 31: Bandwidth Chart (Recharts stacked area, 60s window, click → time filter)
+- ✅ Task 32: Protocol Animations (TCP handshake, DNS query, ICMP echo; play/pause/step)
 
-### ✅ Task 6: Parser and Pretty_Printer
+### Post-Phase-2 Bugfixes and Hardening ✅
 
-- Protocol decoding: Ethernet → IPv4/IPv6 → TCP/UDP/ICMP/DNS/ARP
-- Unknown protocol handling (protocol: 'OTHER')
-- Malformed packet handling (partial decode with error annotation)
-- Round-trip property: parse → print → parse preserves fields
-- Property tests: P4 (layer ordering), P5 (parse-print round trip)
-
-### ✅ Task 7: Anonymizer
-
-- HMAC session key generation (32 bytes, never exported)
-- Transport payload replacement: `sha256(key || payload)[0..7]`
-- DNS answer IP anonymization (preserves query name and type)
-- Key never written to disk, log, IPC, or PCAP
-- Property test: P6 (anonymization invariant)
-
-### ✅ Task 8: Packet_Buffer
-
-- Ring buffer with fixed-size circular array
-- Configurable capacity: 1,000–100,000 (default 10,000)
-- `push()`, `getAll()`, `getRange()`, `clear()` methods
-- `'change'` and `'overflow'` events
-- Unit tests for boundary conditions
-
-### ✅ Task 9: Logger
-
-- Pino-based structured JSON logging
-- Log file: `userData/netvis.log`
-- Rotation: 10MB, retain 2 files
-- DEBUG suppressed in production
-- LOG-SEC-01: No payload content in logs
-- Uncaught exception handler
-- Property test: P16 (logger entry structure)
-
-### ✅ Task 10: Settings_Store
-
-- Persistent settings in `userData/settings.json`
-- Default values: bufferCapacity (10000), theme (system), welcomeSeen (false)
-- Handles missing/corrupt files gracefully
-- `'change'` event emission
-- Unit tests for defaults, patch merge, persistence
-
-### ✅ Task 11: IPC Bridge - Full Implementation
-
-- All channels implemented with zod validation
-- Capture control: `getInterfaces`, `start`, `stop`, `startSimulated`
-- PCAP: `import`, `startFile`, `export`
-- Buffer: `clear`, `setCapacity`, `getAll`
-- Settings: `get`, `set`
-- Push channels: `packet:batch`, `capture:status`, `buffer:overflow`, `buffer:stats`
-- Property test: P17 (input sanitization)
+- ✅ Live capture moved to main thread (CapSource) — eliminates Npcap/pcap_dispatch crash on Windows
+- ✅ Link-type normalization: `cap.open()` returns string `'ETHERNET'`; explicit `LINK_TYPE_MAP` maps to numeric libpcap constants; unknown types logged once and mapped to `-1`
+- ✅ Parser validation hardened: TCP `dataOffset` bounds check, UDP `length` minimum validation, DNS gate uses UDP-declared payload length (not raw buffer length)
+- ✅ Stop button race fixed: `setCaptureStatus` called immediately in `handleStop` after IPC resolves
+- ✅ Replay speed change during replay: stop + restart with new speed
+- ✅ Import timeout increased to 5 minutes for large PCAP files
+- ✅ `PROTO_COLORS` import restored in `protocol-colors.ts` (was causing `ReferenceError` crash)
+- ✅ Error boundary added (`ErrorBoundary.tsx`) — render errors show message instead of blank screen
+- ✅ Fast Refresh incompatibilities fixed: utility functions extracted from component files into `*-utils.ts` modules
+- ✅ `--nv-accent` / `--nv-accent-dim` CSS variables added to theme
+- ✅ `getInterfaces()` guarded against being called during active capture
+- ✅ `completeChallenge` now persists to settings
+- ✅ `importResult` cleared on capture start
+- ✅ `statsThrottler.cleanup()` called on `before-quit`
+- ✅ Initial `buffer:stats` push on `did-finish-load`
+- ✅ `'stopped'` → `'idle'` transition after 800ms
+- ✅ Stale filter cleared on PCAP import
+- ✅ Concurrent `filter:apply` IPC calls protected by generation counter
+- ✅ `ChallengePanel.handleChallengeSuccess` wrapped in `useCallback`
+- ✅ Dead `clampLength` function removed from parser
+- ✅ Redundant `import { PROTO_COLORS }` removed (then restored — was needed for `protocolColorKey`)
+- ✅ `setInterfaces` removed from `App.tsx` effect dependency array (was never called there)
+- ✅ Interface selector double-sort fixed (priority sort preserved)
+- ✅ `BandwidthChart` window anchored to latest packet timestamp (not `Date.now()`) — fixes empty chart for imported PCAPs
 
 ---
 
-## Test Coverage
+## Architecture Notes
 
-### Test Files (9 total, 86 tests)
+### Live Capture Threading
 
-1. **anonymizer.property.test.ts** - P6: Anonymization invariant
-2. **ipc-input-sanitization.property.test.ts** - P17: Input sanitization (13 properties)
-3. **logger.unit.test.ts** - Logger functionality and rotation
-4. **packet-buffer.property.test.ts** - P2: Ring-buffer capacity invariant
-5. **packet-buffer.unit.test.ts** - Boundary conditions
-6. **parser-layer-ordering.property.test.ts** - P4: Parser layer ordering
-7. **parser-round-trip.property.test.ts** - P5: Parse-print round trip
-8. **settings-store.unit.test.ts** - Settings persistence and validation
-9. **simulated-replay.property.test.ts** - P3: Simulated capture order
+`CapSource` runs on the **main process thread**, not the worker thread. The `cap` library's `pcap_dispatch` spawns a native OS background thread whose callbacks fire into the Node.js environment. In a `worker_threads` Worker on Windows with Npcap + Electron 40.x, that environment pointer becomes invalid, causing an `(env) != nullptr` assertion crash. The main process has a stable, long-lived environment that eliminates this crash. File and simulated replay sources remain in the worker thread.
 
-### Property-Based Tests
+### Parser Validation
 
-All property tests use `fast-check` with minimum 100 iterations:
-
-- P2: Ring-buffer capacity invariant
-- P3: Simulated capture preserves packet order
-- P4: Parser layer ordering
-- P5: Parse-print round trip
-- P6: Anonymization invariant
-- P16: Logger entry structure
-- P17: Input sanitization (13 sub-properties)
-
----
-
-## Code Quality Metrics
-
-### ✅ All Checks Passing
-
-- **Tests:** 86/86 passing (10.25s runtime)
-- **ESLint:** 0 errors, 0 warnings
-- **Prettier:** All files formatted
-- **TypeScript:** Strict mode, 0 diagnostics
-- **Security:** All ARCH invariants enforced
-
-### 🐛 Bug Fixes (2026-04-01)
-
-Three bugs identified and fixed during post-checkpoint review:
-1. **Bug #1 (Moderate):** Anonymizer hashing entire frame instead of payload only - FIXED
-2. **Bug #2 (High/Security):** Capture worker bypassing Anonymizer entirely - FIXED
-3. **Bug #3 (Minor):** CaptureEngine calling packetHandler redundantly - FIXED
-
-See [docs/BUGFIX_REPORT_2026-04-01.md](BUGFIX_REPORT_2026-04-01.md) for details.
-
----
-
-## Technology Stack
-
-### Core
-
-- **Electron:** 34.x (cross-platform desktop)
-- **React:** 18.x (UI framework)
-- **TypeScript:** 5.x (strict mode)
-- **Vite:** 6.x (build tool)
-
-### Main Process
-
-- **cap:** Live packet capture (libpcap/Npcap)
-- **pcap-parser:** PCAP file streaming
-- **pino:** Structured logging
-- **pino-roll:** Log rotation
-- **zod:** IPC schema validation
-
-### Testing
-
-- **Vitest:** Test runner
-- **fast-check:** Property-based testing
-
-### Code Quality
-
-- **ESLint:** Linting
-- **Prettier:** Code formatting
-
----
-
-## Next Steps
-
-### Task 12: ✅ Checkpoint - Core Pipeline Integration
-
-**Status:** Complete - All tests pass, code quality verified
-
-### Task 13: Zustand Store and Renderer Bootstrap
-
-**Status:** Not Started
-
-- Install Zustand
-- Create `NetVisStore` with full shape
-- Wire IPC listeners in `App.tsx`
-- Load initial settings and packets on mount
-
-### Upcoming (Phase 1)
-
-- Task 14: MUI theme and Visual Design System
-- Task 15: AppShell layout and Toolbar
-- Task 16: Packet_List with virtualization
-- Task 17: Packet_Detail_Inspector
-- Task 18: Field explanation data and HelpIcon
-- Task 19: Protocol_Chart
-- Task 20: Packet_Flow_Timeline
-- Task 21: Filter_Engine
-- Task 22: PCAP import and export
-- Task 23: Onboarding - WelcomeScreen
-- Task 24: AdvancedSettingsPanel
-- Task 25: Guided challenges
-- Task 26: Privilege minimization setup
-- Task 27: Checkpoint - Phase 1 complete
-- Task 28: Property-based test suite completion
-
----
-
-## Known Limitations
-
-### Current Implementation
-
-- Capture Engine IPC handlers are stubs (TODO in Task 22)
-- No renderer UI yet (starts Task 13)
-- PCAP import/export not wired to buffer (Task 22)
-
-### Platform-Specific
-
-- **Windows:** Requires Npcap installation
-- **Linux:** Requires `cap_net_raw` and `cap_net_admin` capabilities
-- **macOS:** Requires sudo or System Preferences permissions
+The parser validates:
+- All minimum header sizes (Ethernet 14B, IPv4 20B, IPv6 40B, TCP 20B, UDP 8B, ICMP 4B, ARP 28B, DNS 12B)
+- IPv4 IHL (≥20, fits in buffer)
+- TCP `dataOffset` (≥20, fits in buffer; falls back to 20 if invalid)
+- UDP `length` (≥8; throws on invalid, preventing DNS dispatch on that packet)
+- DNS dispatch gated on `udpLength - 8 >= 12` AND buffer bounds (not just buffer length)
 
 ---
 
 ## Development Commands
 
 ```bash
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Run linter
-npm run lint
-
-# Format code
-npm run format
-
-# Build for development
-npm run dev
-
-# Build for production
-npm run build
+npm run dev                    # Start development server
+npm test                       # Run all tests once
+npm run typecheck              # Type-check all TypeScript (including tests)
+npm run lint                   # Run ESLint
+npm run format                 # Format with Prettier
+npm run build                  # Development build (includes typecheck)
+npm run build:prod             # Production build (includes typecheck)
 ```
 
 ---
 
-## File Structure
+## Document Index
 
-```
-netvis/
-├── .kiro/
-│   └── specs/
-│       └── netvis-core/
-│           ├── requirements.md
-│           ├── design.md
-│           └── tasks.md
-├── docs/
-│   ├── PROJECT_STATUS.md (this file)
-│   └── ARCHITECTURE.md (to be created)
-├── src/
-│   ├── main/
-│   │   ├── capture/
-│   │   ├── parser/
-│   │   ├── anonymizer/
-│   │   ├── packet-buffer/
-│   │   ├── logger/
-│   │   ├── settings-store/
-│   │   ├── index.ts
-│   │   ├── ipc-handlers.ts
-│   │   └── ipc-schemas.ts
-│   ├── preload/
-│   │   └── index.ts
-│   ├── renderer/
-│   │   └── src/
-│   ├── shared/
-│   │   ├── capture-types.ts
-│   │   └── ipc-types.ts
-│   └── __tests__/
-│       └── main/
-└── package.json
+| Document | Purpose |
+|----------|---------|
+| `docs/ARCHITECTURE.md` | System architecture, threading model, IPC contract |
+| `docs/PROJECT_STATUS.md` | This file — current implementation state |
+| `docs/PROJECT_DESIGN.md` | High-level product design and UX decisions |
+| `.kiro/specs/netvis-core/requirements.md` | Normative requirements (canonical) |
+| `.kiro/specs/netvis-core/design.md` | Technical design (canonical) |
+| `.kiro/specs/netvis-core/tasks.md` | Implementation task breakdown (canonical) |
+| `.kiro/steering/tech.md` | Technology stack and invariants |
+| `.kiro/steering/structure.md` | Project structure and conventions |
+| `.kiro/steering/product.md` | Product overview and principles |
+| `README.md` | Setup and getting started |
+
+---
+
+## Completed Work
+
+### Phase 1 Backend (Tasks 1-11) ✅
+
+- ✅ Capture Engine (live, file, simulated replay)
+- ✅ Parser (Ethernet → IPv4/IPv6 → TCP/UDP/ICMP/DNS/ARP)
+- ✅ Anonymizer (HMAC-based payload pseudonymization, main-process IPC boundary)
+- ✅ Packet Buffer (ring buffer, 1K-100K capacity)
+- ✅ Logger (Pino, rotation, structured JSON)
+- ✅ Settings Store (persistent JSON)
+- ✅ IPC Layer (Zod validation, contextBridge)
+- ✅ Worker Thread (capture/parse pipeline)
+- ✅ IPC Batching (50ms/100 packets)
+- ✅ Error Normalization (platform-specific hints)
+
+### Phase 1 UI (Tasks 13-21) ✅
+
+- ✅ Zustand Store + Renderer Bootstrap
+- ✅ Tailwind CSS + Design System (Sora/Space Mono fonts, token system, Radix UI components)
+- ✅ AppShell layout (Toolbar, StatusBar, InterfaceSelector, CaptureControls, FilterBar)
+- ✅ Packet List with virtualization (@tanstack/virtual, keyboard nav, ARIA)
+- ✅ Packet Detail Inspector (collapsible tree, hex strip, slide-in animation)
+- ✅ Field Explanations + HelpIcon (all protocol fields, help-text.json)
+- ✅ Protocol Chart (Recharts PieChart, protocol colors, accessible table)
+- ✅ Packet Flow Timeline (60-bucket BarChart, time-range filter on click)
+- ✅ Filter Engine (lexer, recursive-descent parser, evaluator, `ts` field support)
+
+### Phase 1 Completion Bugfixes (Task 21.5) ✅
+
+- ✅ 21.5.1: `PacketBuffer.setCapacity()` method implemented
+- ✅ 21.5.2: `WorkerOutMessage` type documentation corrected
+- ✅ 21.5.3: Capture control IPC handlers wired (capture:start/stop/getInterfaces/startSimulated with FILE-SEC-01)
+- ✅ 21.5.4: Buffer management IPC handlers wired (buffer:clear, buffer:setCapacity)
+- ✅ 21.5.5: Double anonymization in filter:apply fixed (hash consistency with buffer:getAll)
+- ✅ 21.5.6: Simulated replay UI built (speed selector, pcap:selectFile dialog separation)
+
+### Phase 1 Stabilization Sprint (Task 21.6) ✅
+
+- ✅ 21.6.1: Worker restart rebinding fix
+- ✅ 21.6.2: Settings bootstrap uses persisted buffer capacity
+- ✅ 21.6.3: UDP/ICMP payload boundary — `rawByteLength` now header-only (8 for UDP, 4 for ICMP); anonymizer correctly identifies payload start
+- ✅ 21.6.4: pcap:startFile path hardening (FILE-SEC-01)
+- ✅ 21.6.5: File-mode status flow completion
+- ✅ 21.6.6: pps cleanup
+- ✅ 21.6.7: buffer:stats throttling (500ms spacing)
+- ✅ 21.6.8: Single owner for interface enumeration
+- ✅ 21.6.9: setActiveInterface store action
+- ✅ 21.6.10: AdvancedSettingsPanel replay-speed ownership cleanup
+- ✅ 21.6.11: Overflow notification wired to real PacketBuffer 'overflow' events
+- ✅ 21.6.12: DNS anonymization claim/code alignment
+- ✅ 21.6.13: Stabilization regression tests
+- ✅ 21.6.14: Docs re-baselined
+
+### Additional Bugfixes ✅
+
+- ✅ Bug D: `sendToRenderer` wired to `mainWindow` in `main/index.ts`
+- ✅ Bug A: `packet-buffer.unit.test.ts` and `phase1-bugfixes.unit.test.ts` corrected to use `ParsedPacket`
+- ✅ Bug B: Invalid `captureMode` literal removed from `filter-engine.property.test.ts`
+- ✅ Bug C: `pcap:import` now has 30s timeout + no-op handler restore
+- ✅ Bug E: `PacketBuffer.setCapacity()` IPC-level bounds check removed (validation stays at IPC layer)
+- ✅ BUG-C1: `capture:status`, `buffer:stats`, `buffer:overflow` push channels wired
+- ✅ BUG-H1: `anonPacketArb` missing `id` field fixed
+- ✅ BUG-H2: `CaptureEngine.on()` converted to `EventEmitter` pattern
+- ✅ BUG-M1: `Parser.print()` guarded against missing `rawData`
+- ✅ BUG-M2: README updated
+- ✅ RISK-1: `getInterfaces()` guarded against worker crash mid-call
+- ✅ RISK-4: `SpeedMultiplier` cast validated in `CaptureControls`
+- ✅ StatusBar overflow effect now returns cleanup (clears timer on unmount)
+- ✅ build:mac and build:linux now gate on `npm run typecheck` (consistent with all other build targets)
+
+### Test Suite Hardening ✅
+
+- ✅ T1: `createMockPacket()` in overflow test corrected to real `ParsedPacket` shape
+- ✅ T2: `packet-buffer.property.test.ts` now uses `ParsedPacket` (not `AnonPacket`)
+- ✅ T3: `store.unit.test.ts` replaced with real `useNetVisStore` tests (43 tests, no mocks)
+- ✅ T4: Type errors in `capture-command-semantics`, `file-mode-status-flow`, `phase2-bugfixes` resolved
+- ✅ T5: `simulated-replay.property.test.ts` — deferred (tests pure `computeDelay` helper; acceptable)
+- ✅ T6: `Math.random()` inside fast-check `.map()` replaced with deterministic `fc.array(fc.integer(...))` generator
+- ✅ B1: jsdom environment configured for renderer tests via `environmentMatchGlobs`
+- ✅ B2: Renderer test utilities created (`test-utils.ts`: `renderWithStore`, `resetStore`, `mockElectronAPI`, `makeAnonPacket`)
+- ✅ B3: Split TypeScript test configs (`tsconfig.tests.main.json` / `tsconfig.tests.renderer.json`) extending project configs; `typecheck:tests` wired into `typecheck`
+- ✅ `overflow-event-semantics.unit.test.ts` deleted; replaced with `packet-buffer-overflow.unit.test.ts` (pure main-side, no renderer imports)
+
+### Property Tests ✅
+
+- ✅ P2–P12, P16–P20 passing (100+ iterations each)
+- ✅ P19 (timeline bucket construction) — complete
+- ✅ P20 (time-range filter generation) — complete
+
+---
+
+## Next Steps
+
+### Remaining Phase 1 Tasks (Tasks 22-28)
+
+- [ ] Task 22: PCAP import/export (PARTIAL: backend exists, renderer wiring incomplete)
+- [ ] Task 23: Onboarding — WelcomeScreen
+- [ ] Task 24: AdvancedSettingsPanel (PARTIAL: implementation exists)
+- [ ] Task 25: Guided challenges
+- [ ] Task 26: Privilege minimization setup
+- [ ] Task 27: Checkpoint — Phase 1 complete
+- [ ] Task 28: Property-based test suite completion (P1, P15 required)
+
+### Phase 2 Tasks (Tasks 29-33)
+
+- [ ] Task 29: OSI Layer Diagram
+- [ ] Task 30: IP Flow Map (D3)
+- [ ] Task 31: Bandwidth Chart
+- [ ] Task 32: Protocol Animations
+- [ ] Task 33: Final checkpoint
+
+→ **Full task breakdown:** See `.kiro/specs/netvis-core/tasks.md`
+
+---
+
+## Known Issues
+
+**Partial implementations:**
+- Task 22 (PCAP import/export): Backend exists, renderer wiring incomplete
+- Task 24 (AdvancedSettingsPanel): Implementation exists, needs refinement
+
+**Missing property tests (required before Task 27):**
+- P1 (interface enumeration completeness)
+- P15 (buffer clear resets all state)
+
+---
+
+## Performance Metrics
+
+**Current (Phase 1):**
+- ✅ Parser: <1ms per packet
+- ✅ Anonymizer: <0.5ms per packet
+- ✅ Ring buffer: O(1) operations
+- ✅ packet:batch channel capped at ≤20 calls/sec at 1,000 pps
+- ✅ buffer:stats throttled to 500ms spacing (Task 21.6.7)
+
+**Phase 2 targets:**
+- 1,000 pps sustained without UI lag
+- Packet visible within 200ms of capture
+- 30 fps renderer at 1,000 pps
+- ≤500 MB memory at 100K buffer
+
+---
+
+## Dependencies
+
+**Production:** Electron 40.6.1, React 19.2.1, Zustand 5.x, Recharts 3.x, @tanstack/react-virtual 3.x, Radix UI, motion 12.x, cap, pcap-parser, pino + pino-roll, zod, lucide-react, tailwindcss 4.x
+
+**Development:** Vitest 4.x, fast-check 4.x, jsdom 29.x, @testing-library/react 16.x, @testing-library/user-event 14.x, TypeScript 5.9.3, ESLint, Prettier, electron-vite 5.x, electron-builder 26.x
+
+---
+
+## Development Commands
+
+```bash
+npm run dev                    # Start development server
+npm test                       # Run all tests once
+npm run typecheck              # Type-check all TypeScript (including tests)
+npm run typecheck:tests        # Type-check test files only
+npm run lint                   # Run ESLint
+npm run format                 # Format with Prettier
+npm run build                  # Development build (includes typecheck)
+npm run build:prod             # Production build (includes typecheck)
 ```
 
 ---
 
-## Contributing
+## Questions?
 
-This project follows the spec-driven development methodology:
-
-1. Requirements define what to build
-2. Design defines how to build it
-3. Tasks break down implementation
-4. Property-based tests validate correctness
-
-All changes must:
-
-- Pass all existing tests
-- Add tests for new functionality
-- Pass ESLint and Prettier checks
-- Maintain TypeScript strict mode compliance
-- Follow security architecture invariants
-
----
-
-## License
-
-[To be determined]
+- **Architecture?** → `docs/ARCHITECTURE.md`
+- **Requirements?** → `.kiro/specs/netvis-core/requirements.md`
+- **Design?** → `.kiro/specs/netvis-core/design.md`
+- **Tasks?** → `.kiro/specs/netvis-core/tasks.md`

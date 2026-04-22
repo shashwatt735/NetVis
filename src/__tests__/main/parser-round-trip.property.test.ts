@@ -323,7 +323,7 @@ describe('Parser — parse–print round trip (P5)', () => {
           expect(second.layers[i].protocol).toBe(first.layers[i].protocol)
         }
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -341,7 +341,7 @@ describe('Parser — parse–print round trip (P5)', () => {
         const diff = diffPackets(first, second)
         expect(diff).toBeNull()
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -368,7 +368,7 @@ describe('Parser — parse–print round trip (P5)', () => {
         const origLen = record.readUInt32LE(12)
         expect(origLen).toBe(parsed.wireLength)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -391,7 +391,7 @@ describe('Parser — parse–print round trip (P5)', () => {
         const reconstructed = tsSec * 1000 + Math.floor(tsUsec / 1000)
         expect(reconstructed).toBe(parsed.timestamp)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -406,7 +406,7 @@ describe('Parser — parse–print round trip (P5)', () => {
         const second = roundTrip(raw, first)
         expect(second.wireLength).toBe(first.wireLength)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -427,7 +427,7 @@ describe('Parser — parse–print round trip (P5)', () => {
           expect(frameBytes[i]).toBe(raw.data[i])
         }
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 })

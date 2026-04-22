@@ -20,7 +20,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('capture:startSimulated', { path, speed }),
 
   // ─── PCAP import/export (invoke) ────────────────────────────────────────────
+  selectPcapFile: () => ipcRenderer.invoke('pcap:selectFile'),
   importPcap: () => ipcRenderer.invoke('pcap:import'),
+  importPcapFromPath: (path: string) => ipcRenderer.invoke('pcap:importFromPath', path),
   startFile: (path: string) => ipcRenderer.invoke('pcap:startFile', path),
   exportPcap: () => ipcRenderer.invoke('pcap:export'),
 
@@ -28,6 +30,9 @@ const electronAPI: ElectronAPI = {
   clearBuffer: () => ipcRenderer.invoke('buffer:clear'),
   setBufferCapacity: (capacity: number) => ipcRenderer.invoke('buffer:setCapacity', capacity),
   getAllPackets: () => ipcRenderer.invoke('buffer:getAll'),
+
+  // ─── Filter (invoke) ────────────────────────────────────────────────────────
+  applyFilter: (expression: string) => ipcRenderer.invoke('filter:apply', { expression }),
 
   // ─── Settings (invoke) ──────────────────────────────────────────────────────
   getSettings: () => ipcRenderer.invoke('settings:get'),

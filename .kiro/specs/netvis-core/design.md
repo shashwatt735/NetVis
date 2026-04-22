@@ -1,14 +1,16 @@
 # Design Document — NetVis Core
 
+**Last Modified:** 2026-04-22
+
 ## Overview
 
 NetVis is a cross-platform Electron + React + TypeScript desktop application for educational network packet visualization. It targets beginner networking students who need to capture live traffic, load PCAP files, and understand protocol behavior through interactive visualizations and guided challenges.
 
-The application is structured around a strict security boundary: the Electron main process owns all privileged operations (packet capture, file I/O, parsing, anonymization, logging), and the React renderer owns all UI concerns. Communication crosses the boundary only through a narrow, explicitly declared IPC contract enforced by Electron's `contextBridge`.
+The application is structured around a strict security boundary: **live capture (`CapSource`) runs on the main process thread** for native thread safety on Windows; the worker thread owns file/simulated replay sources and parsing; the Electron main process owns privileged orchestration, buffering, anonymization, logging, settings persistence, and IPC delivery; and the React renderer owns all UI concerns. Communication crosses the boundary only through a narrow, explicitly declared IPC contract enforced by Electron's `contextBridge`.
 
 ### Key Design Goals
 
-- Unidirectional data flow (ARCH-05): `Capture_Engine → Parser → Anonymizer → Packet_Buffer → IPC_Bridge → Renderer`
+- Unidirectional data flow (ARCH-05): `Capture_Engine → Parser → Packet_Buffer → [IPC boundary: Anonymizer] → IPC_Bridge → Renderer`
 - Security by default: `nodeIntegration: false`, `contextIsolation: true`, no remote URLs (ARCH-01–04)
 - Educational clarity: every packet field has a plain-English explanation; protocol colors are consistent everywhere
 - Phase-gated delivery: Phase 1 (core visualizations) ships before Phase 2 (advanced visualizations)
@@ -21,25 +23,39 @@ The application is structured around a strict security boundary: the Electron ma
 
 ```mermaid
 graph TD
+  subgraph Worker Thread
+    CC[CaptureController]
+    CS[CapSource]
+    FS[PcapFileSource]
+    RS[SimulatedReplaySource]
+    PA[Parser]
+    CS --> CC
+    FS --> CC
+    RS --> CC
+    CC -->|RawPacket| PA
+  end
+
   subgraph Main Process
     CE[Capture_Engine]
-    PA[Parser]
+    WS[WorkerSupervisor]
+    FE[Filter_Engine]
     AN[Anonymizer]
     PB[Packet_Buffer]
+    IB[IpcBatcher]
     LG[Logger]
     ST[Settings_Store]
-    CE -->|raw bytes| PA
-    PA -->|ParsedPacket| AN
-    AN -->|AnonPacket| PB
+    CE --> WS
+    PA -->|ParsedPacket| PB
+    PB -->|ParsedPacket| AN
+    AN -->|AnonPacket| IB
     CE --> LG
-    PA --> LG
     ST --> CE
+    FE --> PB
   end
 
   subgraph Preload / IPC_Bridge
     IPC[contextBridge / ipcRenderer]
-    PB -->|push events| IPC
-    ST <-->|settings events| IPC
+    ST <-->|settings IPC| IPC
   end
 
   subgraph Renderer Process
@@ -48,17 +64,15 @@ graph TD
     PDI[Packet_Detail_Inspector]
     PC[Protocol_Chart]
     PFT[Packet_Flow_Timeline]
-    FE[Filter_Engine]
     EL[Educational_Layer]
     OSI[OSI_Layer_Diagram]
     IFM[IP_Flow_Map]
     BC[Bandwidth_Chart]
     ANIM[Protocol_Animations]
-    IPC -->|packet events| ZS
+    IPC -->|packet:batch| ZS
     ZS --> PL
     ZS --> PC
     ZS --> PFT
-    ZS --> FE
     PL --> PDI
     PDI --> EL
     PDI --> OSI
@@ -66,13 +80,15 @@ graph TD
     ZS --> BC
     EL --> ANIM
   end
+
+  IB -->|packet:batch| IPC
 ```
 
 ### Process Boundary Rules
 
 | Rule                              | Enforcement                                                                |
 | --------------------------------- | -------------------------------------------------------------------------- |
-| Only anonymized packets cross IPC | Anonymizer runs before `Packet_Buffer.push()`                              |
+| Only anonymized packets cross IPC | Anonymizer runs at IPC boundary before renderer delivery; Packet_Buffer stores ParsedPacket |
 | No Node.js in renderer            | `nodeIntegration: false`, `contextIsolation: true`                         |
 | No remote URLs                    | `webPreferences.allowRunningInsecureContent: false`; CSP header            |
 | Typed IPC contract                | Shared `ipc-types.ts` imported by both preload and renderer                |
@@ -86,21 +102,28 @@ graph TD
 
 #### Capture_Engine
 
-The capture layer has exactly two modes. They are not fallbacks for each other — they are separate features that share the same downstream pipeline.
+The capture layer has three acquisition modes. They are not fallbacks for each other — they are separate features that share the same downstream pipeline.
 
 ```
 MODE 1: Live Capture
-  User selects interface → CapSource (cap library) → RawPacket { captureMode: 'live' }
-  → Shared Worker Pipeline: Parser → Anonymizer → postMessage
-  → Main thread: Packet_Buffer.push() → IPC batch → Renderer
+  User selects interface → CapSource (cap library) — runs on MAIN THREAD
+  → Main thread: RawPacket → Parser.parse() → ParsedPacket
+  → Main thread: Packet_Buffer.push(ParsedPacket) → on send: Anonymizer → IpcBatcher → Renderer
 
 MODE 2: File Import
   User selects .pcap/.pcapng → PcapFileSource (pcap-parser) → RawPacket { captureMode: 'file' }
-  → Shared Worker Pipeline: Parser → Anonymizer → postMessage
-  → Main thread: Packet_Buffer.push() → IPC batch → Renderer
+  → Worker pipeline: Parser → postMessage(ParsedPacket)
+  → Main thread: Packet_Buffer.push(ParsedPacket) → on send: Anonymizer → IpcBatcher → Renderer
+
+MODE 3: Simulated Replay
+  User selects .pcap/.pcapng + speed multiplier → SimulatedReplaySource → RawPacket { captureMode: 'file' }
+  → Worker pipeline: Parser → postMessage(ParsedPacket)
+  → Main thread: Packet_Buffer.push(ParsedPacket) → on send: Anonymizer → IpcBatcher → Renderer
 ```
 
-**Key invariant:** both modes produce identical `RawPacket` objects. Everything below the capture boundary — parsing, anonymization, buffering, IPC, visualization — is completely unaware of which mode produced a packet.
+**Key invariant:** all three modes produce identical `RawPacket` objects. Everything below the capture boundary — parsing, anonymization, buffering, IPC, visualization — is completely unaware of which mode produced a packet.
+
+> **Why CapSource runs on the main thread:** The `cap` library's `pcap_dispatch` spawns a native OS background thread whose callbacks fire into the Node.js environment via `node::InternalMakeCallback`. In a `worker_threads` Worker on Windows with Npcap + Electron 40.x, the worker's `Environment*` pointer becomes invalid after a few seconds, causing an `(env) != nullptr` assertion crash. The main process has a stable, long-lived Node.js environment that persists for the entire app lifetime, eliminating this crash. File and simulated replay sources remain in the worker thread since they use Node.js streams which are safe in workers.
 
 **Library responsibilities:**
 
@@ -113,11 +136,13 @@ Neither library does protocol parsing. Both produce raw bytes. The `Parser` comp
 
 **Fallback policy:** if `cap` fails to load (missing Npcap on Windows, insufficient permissions), live capture is disabled and the UI shows an actionable error. File import continues to work independently — it has no dependency on `cap` or system permissions. The user is never silently switched between modes.
 
+**No silent fallback:** The application never automatically switches between live capture, file import, and simulated replay. Each mode is explicitly user-initiated. If one mode fails, the user must explicitly choose an alternative.
+
 ---
 
 ##### PacketSource — Adapter Interface
 
-Decouples `CaptureController` from specific libraries. Both `CapSource` and `PcapFileSource` implement this interface.
+Decouples `CaptureController` from specific libraries. `CapSource`, `PcapFileSource`, and `SimulatedReplaySource` all implement this interface.
 
 ```typescript
 /**
@@ -181,7 +206,17 @@ import { Cap } from 'cap'
 
 /**
  * PacketSource implementation using the cap library.
- * Must run inside a worker_threads Worker — never on the main thread.
+ * Runs on the MAIN PROCESS THREAD — not in a worker_threads Worker.
+ *
+ * Rationale: cap's pcap_dispatch spawns a native OS background thread whose
+ * callbacks fire into the Node.js environment. In a worker_threads Worker on
+ * Windows with Npcap + Electron 40.x, the worker's Environment* pointer
+ * becomes invalid, causing an (env) != nullptr assertion crash. The main
+ * process has a stable, long-lived environment that eliminates this crash.
+ *
+ * Link-type normalization: cap.open() returns a string (e.g. 'ETHERNET'),
+ * not a number. An explicit LINK_TYPE_MAP converts to numeric libpcap
+ * constants. Unknown types are logged once and mapped to -1.
  */
 class CapSource implements PacketSource {
   private cap: Cap | null = null
@@ -416,7 +451,7 @@ class SimulatedReplaySource implements PacketSource {
 
 ##### CaptureController — Mode Switcher
 
-Lives in the main process. Creates the appropriate `PacketSource`, wires up the worker, and enforces single-source-at-a-time.
+Runs inside the worker thread. It owns the active `PacketSource`, enforces single-source-at-a-time semantics within the worker, and responds to main-process `requestId` commands through the command/ack protocol.
 
 ```typescript
 type ControllerState = 'idle' | 'live' | 'file' | 'simulated'
@@ -434,33 +469,54 @@ class CaptureController {
 
   async startLive(iface: string): Promise<void> {
     this.guardIdle('startLive')
-    this.source = new CapSource(iface)
-    this.wireSource()
-    await this.source.start()
-    this.state = 'live'
-    this.onStatus('live')
+    const source = new CapSource(iface)
+    this.wireSource(source)
+    try {
+      await source.start()
+      this.source = source
+      this.state = 'live'
+      this.onStatus('live')
+    } catch (error) {
+      this.source = null
+      this.state = 'idle'
+      throw error
+    }
   }
 
   async startFile(filePath: string): Promise<void> {
     this.guardIdle('startFile')
-    this.source = new PcapFileSource(filePath)
-    this.wireSource()
-    await this.source.start()
-    this.state = 'file'
-    this.onStatus('file')
+    const source = new PcapFileSource(filePath)
+    this.wireSource(source)
+    try {
+      await source.start()
+      this.source = source
+      this.state = 'file'
+      this.onStatus('file')
+    } catch (error) {
+      this.source = null
+      this.state = 'idle'
+      throw error
+    }
   }
 
   async startSimulated(filePath: string, speed: SpeedMultiplier): Promise<void> {
     this.guardIdle('startSimulated')
-    this.source = new SimulatedReplaySource(filePath, speed)
-    this.wireSource()
-    await this.source.start()
-    this.state = 'simulated'
-    this.onStatus('simulated')
+    const source = new SimulatedReplaySource(filePath, speed)
+    this.wireSource(source)
+    try {
+      await source.start()
+      this.source = source
+      this.state = 'simulated'
+      this.onStatus('simulated')
+    } catch (error) {
+      this.source = null
+      this.state = 'idle'
+      throw error
+    }
   }
 
   async stop(): Promise<void> {
-    if (this.state === 'idle') return // idempotent
+    if (this.state === 'idle') return
     await this.source?.stop()
     this.source = null
     this.state = 'idle'
@@ -471,10 +527,10 @@ class CaptureController {
     return this.state
   }
 
-  private wireSource(): void {
-    this.source!.onPacket(this.onPacket)
-    this.source!.onError(this.onError)
-    this.source!.onStopped(() => {
+  private wireSource(source: PacketSource): void {
+    source.onPacket(this.onPacket)
+    source.onError(this.onError)
+    source.onStopped(() => {
       this.state = 'idle'
       this.source = null
       this.onStopped()
@@ -482,17 +538,44 @@ class CaptureController {
   }
 
   private guardIdle(caller: string): void {
-    if (this.state !== 'idle')
+    if (this.state !== 'idle') {
       throw mapError(new Error(`Cannot call ${caller} while state is "${this.state}"`), 'UNKNOWN')
+    }
   }
 }
 ```
+
+##### Transactional Startup
+
+Capture startup must be atomic: either all resources initialize successfully, or the operation fails cleanly with no partial state.
+
+**Startup sequence:**
+1. Validate interface or file path
+2. Create PacketSource
+3. Wire event handlers
+4. Call `source.start()`
+5. Commit active source/state only after startup succeeds
+6. If any step fails, clean up and remain in `idle`
+
+**No partial initialization:** If startup fails, the `CaptureController` must not retain a partially assigned active source, and the user must explicitly retry.
+
+##### Request-Owned Completion
+
+Every request lifecycle (capture start, file load, simulated replay, import) has exactly one owner responsible for:
+- timeout registration
+- listener registration
+- cleanup on completion or error
+- success/failure notification
+
+**Ownership rule:** The subsystem that initiates a request owns its completion. No shared ownership. No silent handoffs.
 
 ---
 
 ##### IPC Batching
 
 At 1,000 pps, one IPC message per packet = 1,000 `ipcMain.send()` calls/second — enough to degrade UI performance significantly. The fix: accumulate packets and flush in groups.
+
+**Critical: Anonymization happens before batching.** The worker thread sends ParsedPacket to the main thread. The main thread anonymizes each ParsedPacket to AnonPacket, then IpcBatcher accumulates AnonPacket[] for renderer delivery. IpcBatcher never sees ParsedPacket.
 
 ```typescript
 /**
@@ -538,22 +621,29 @@ The Zustand store gains an `addPackets(ps: AnonPacket[])` action to process batc
 /**
  * Restarts the capture worker on unexpected exit.
  * Does NOT restart if stop() was called intentionally.
+ * Any replacement worker is surfaced immediately so CaptureEngine can
+ * rebind command routing and listeners before accepting further requests.
  */
 class WorkerSupervisor {
   private worker: Worker | null = null
   private intentional = false
 
-  constructor(private readonly workerPath: string) {}
+  constructor(
+    private readonly workerPath: string,
+    private readonly onReplacement: (worker: Worker) => void
+  ) {}
 
   start(): Worker {
     this.intentional = false
-    this.worker = new Worker(this.workerPath)
-    this.worker.on('exit', (code) => {
+    const worker = new Worker(this.workerPath)
+    this.worker = worker
+    this.onReplacement(worker)
+    worker.on('exit', (code) => {
       if (this.intentional) return
       Logger.warn('CaptureWorker', `Worker exited unexpectedly (code ${code}), restarting`)
       setTimeout(() => this.start(), 500)
     })
-    return this.worker
+    return worker
   }
 
   stop(): void {
@@ -563,6 +653,8 @@ class WorkerSupervisor {
   }
 }
 ```
+
+**Worker replacement rule:** Restarting the worker is not sufficient by itself. Any replacement worker created after a crash must become the authoritative worker for `CaptureEngine`, and all command routing and listener bindings must be rebound to that replacement worker before further requests are accepted. The pattern above shows WorkerSupervisor emitting a 'replacement' event (via callback) that CaptureEngine listens to, ensuring CaptureEngine's internal worker reference is updated after every restart.
 
 ---
 
@@ -608,17 +700,22 @@ function mapError(err: Error, code: CaptureErrorCode = 'UNKNOWN', context?: stri
 States:  IDLE → ACTIVE → IDLE
 
 Messages main → worker:
-  { type: 'start-live',      iface: string }
-  { type: 'start-file',      filePath: string }
-  { type: 'start-simulated', filePath: string, speed: SpeedMultiplier }
-  { type: 'stop' }
+  { type: 'start-live',      requestId: string, iface: string }
+  { type: 'start-file',      requestId: string, filePath: string }
+  { type: 'start-simulated', requestId: string, filePath: string, speed: SpeedMultiplier }
+  { type: 'stop',            requestId: string }
 
 Messages worker → main:
-  { type: 'packet-batch', packets: RawPacket[] }
+  { type: 'command-ok',       requestId: string }
+  { type: 'command-error',    requestId: string, error: CaptureError }
+  { type: 'command-complete', requestId: string }  // for file streaming completion
+  { type: 'packet-batch',     packets: ParsedPacket[] }
   { type: 'stopped' }
-  { type: 'error',        error: CaptureError }
-  { type: 'metrics',      truncatedDropCount: number }
+  { type: 'error',            error: CaptureError }
+  { type: 'metrics',          truncatedDropCount: number }
 ```
+
+**Command/Ack Protocol:** Every worker command carries a `requestId` (UUID). The worker replies with `command-ok`, `command-error`, or `command-complete`. CaptureEngine stores pending promises in a `Map<requestId, {resolve, reject}>` and settles them only on the matching ack — no fire-and-forget.
 
 Any `start-*` message received while state is `ACTIVE` is rejected with `CaptureError { code: 'UNKNOWN' }`.
 
@@ -626,36 +723,47 @@ Any `start-*` message received while state is `ACTIVE` is rejected with `Capture
 
 ##### Threading Model Summary
 
-| Stage                  | Thread   | Reason                                                          |
-| ---------------------- | -------- | --------------------------------------------------------------- |
-| Interface enumeration  | Worker   | `cap` is a native addon; keep off main thread                   |
-| Live capture callbacks | Worker   | Up to 1,000+ callbacks/second                                   |
-| File streaming         | Worker   | I/O and parsing load                                            |
-| Parser + Anonymizer    | Worker   | Hot path — run alongside capture                                |
-| IPC batching           | Main     | Receives `AnonPacket[]` from worker, batches, sends to renderer |
-| Packet_Buffer          | Main     | Single owner; no concurrent access issues                       |
-| Visualization + UI     | Renderer | React owns the DOM                                              |
+| Stage                          | Thread   | Reason                                                       |
+| ------------------------------ | -------- | ------------------------------------------------------------ |
+| Interface enumeration          | Main     | Cap.deviceList() runs on main thread alongside CapSource     |
+| Live capture callbacks         | Main     | CapSource on main thread — Npcap/pcap_dispatch native thread safety |
+| File streaming                 | Worker   | I/O and parsing load stay off the main thread                |
+| Simulated replay scheduling    | Worker   | Replay timing belongs to the source side                     |
+| Parser (live)                  | Main     | Called directly by CapSource on main thread                  |
+| Parser (file/simulated)        | Worker   | Hot-path decode of RawPacket to ParsedPacket in worker       |
+| CaptureEngine orchestration    | Main     | Privileged lifecycle orchestration and IPC ownership         |
+| WorkerSupervisor               | Main     | Worker restart and rebind control                            |
+| Packet_Buffer                  | Main     | Stores ParsedPacket as the privileged canonical packet form  |
+| Anonymizer                     | Main     | Converts ParsedPacket to AnonPacket at the send boundary     |
+| IpcBatcher                     | Main     | Batches AnonPacket[] for renderer delivery                   |
+| Logger                         | Main     | Privileged structured logging                                |
+| Settings_Store                 | Main     | Persistent settings and challenge completion source of truth |
+| Visualization + educational UX | Renderer | React owns the DOM and user-facing experience                |
 
 ---
 
 ##### Capture_Engine Public Interface
 
 ```typescript
+type InterfaceResult =
+  | { ok: true; interfaces: NetworkInterface[] }
+  | { ok: false; error: string; platformHint?: string }
+
 interface CaptureEngine {
-  getInterfaces(): Promise<NetworkInterface[]>
+  getInterfaces(): Promise<InterfaceResult>
   startCapture(iface: string): Promise<void>
   stopCapture(): Promise<void> // resolves within 500 ms; drains in-flight packets first
   startFile(filePath: string): Promise<void>
   startSimulated(pcapPath: string, speedMultiplier: SpeedMultiplier): Promise<void>
-  on(event: 'packet', handler: (raw: RawPacket) => void): void
   on(event: 'error', handler: (err: CaptureError) => void): void
   on(event: 'stopped', handler: () => void): void
 }
 ```
 
+
 #### Parser
 
-Pure synchronous TypeScript module. Accepts a `RawPacket` and returns a `ParsedPacket`. Decodes layers in order: Ethernet → IPv4/IPv6 → TCP/UDP/ICMP/DNS. Unknown or malformed layers are annotated rather than dropped (Req 3.3, 3.4).
+Pure synchronous TypeScript module running in the worker thread. Accepts a `RawPacket` and returns a `ParsedPacket`. Decodes layers in order: Ethernet → IPv4/IPv6/ARP → TCP/UDP/ICMP/DNS as applicable. Unknown or malformed layers are annotated rather than dropped (Req 3.3, 3.4).
 
 ```typescript
 interface Parser {
@@ -680,16 +788,19 @@ In-memory ring buffer. Default capacity 10,000 packets; configurable 1,000–100
 
 ```typescript
 interface PacketBuffer {
-  push(packet: AnonPacket): void
-  getAll(): AnonPacket[]
-  getRange(start: number, end: number): AnonPacket[]
+  push(packet: ParsedPacket): void
+  getAll(): ParsedPacket[]
+  getRange(start: number, end: number): ParsedPacket[]
   clear(): void
+  setCapacity(newCapacity: number): void
   readonly size: number
   readonly capacity: number
   on(event: 'change', handler: () => void): void
   on(event: 'overflow', handler: (dropped: number) => void): void
 }
 ```
+
+`setCapacity()` accepts values in the 1,000–100,000 range; when shrinking below current size it retains the most recent packets and emits a `'change'` event after resize.
 
 #### Logger
 
@@ -725,24 +836,30 @@ IPC channels added: `settings:get` (invoke) and `settings:set` (invoke). See Cha
 
 The preload script exposes a single `window.electronAPI` object via `contextBridge`. All channels are typed via a shared `src/shared/ipc-types.ts` module.
 
+##### Push-Channel Ownership Rule
+
+Each renderer-visible push channel has exactly one authoritative emitter in the privileged domain. Push channels such as `packet:batch`, `capture:status`, `buffer:overflow`, and `buffer:stats` must not be emitted from multiple subsystems or duplicated in handler-level optimistic flows. IPC handlers may return invoke results, but they do not own renderer-visible push-channel truth.
+
 #### Channel Inventory
 
 | Direction       | Channel                  | Payload                                    | Description                                             |
 | --------------- | ------------------------ | ------------------------------------------ | ------------------------------------------------------- |
-| Renderer → Main | `capture:getInterfaces`  | —                                          | Returns `NetworkInterface[]`                            |
+| Renderer → Main | `capture:getInterfaces`  | —                                          | Returns `InterfaceResult`: `{ ok: true; interfaces: NetworkInterface[] }` or `{ ok: false; error: string; platformHint?: string }` |
 | Renderer → Main | `capture:start`          | `{ iface: string }`                        | Start live capture                                      |
 | Renderer → Main | `capture:stop`           | —                                          | Stop capture                                            |
 | Renderer → Main | `capture:startSimulated` | `{ path: string; speed: SpeedMultiplier }` | Start simulated replay                                  |
-| Renderer → Main | `pcap:import`            | —                                          | Open file dialog, parse, populate buffer (instant load) |
+| Renderer → Main | `pcap:import`            | —                                          | Open file dialog, validate path, stream file through the shared privileged pipeline, and populate the buffer |
+| Renderer → Main | `pcap:selectFile`        | —                                          | Open file dialog, return path without loading           |
 | Renderer → Main | `pcap:startFile`         | `{ path: string }`                         | Stream file through pipeline as `captureMode: 'file'`   |
 | Renderer → Main | `pcap:export`            | —                                          | Open save dialog, write buffer to PCAP                  |
+| Renderer → Main | `filter:apply`           | `{ expression: string }`                   | Apply filter expression, returns filtered `AnonPacket[]`|
 | Renderer → Main | `buffer:clear`           | —                                          | Clear Packet_Buffer                                     |
 | Renderer → Main | `buffer:setCapacity`     | `{ capacity: number }`                     | Resize buffer                                           |
 | Renderer → Main | `buffer:getAll`          | —                                          | Returns `AnonPacket[]` (initial load)                   |
 | Renderer → Main | `log:openFolder`         | —                                          | Open log directory in OS file explorer                  |
 | Renderer → Main | `settings:get`           | —                                          | Returns current `Settings` object                       |
 | Renderer → Main | `settings:set`           | `Partial<Settings>`                        | Persists setting patch; returns updated `Settings`      |
-| Main → Renderer | `packet:batch`           | `AnonPacket[]`                             | Push batch of new packets (50 ms window, max 100)       |
+| Main → Renderer | `packet:batch`           | `AnonPacket[]`                             | Authoritative renderer-visible packet push channel (50 ms window, max 100) |
 | Main → Renderer | `capture:status`         | `CaptureStatus`                            | Status updates (active, stopped, error)                 |
 | Main → Renderer | `buffer:overflow`        | `{ dropped: number }`                      | Buffer overflow notification                            |
 | Main → Renderer | `buffer:stats`           | `BufferStats`                              | Occupancy update (≤500 ms interval)                     |
@@ -752,12 +869,15 @@ The preload script exposes a single `window.electronAPI` object via `contextBrid
 ```typescript
 interface ElectronAPI {
   // invoke (renderer → main, returns promise)
-  getInterfaces(): Promise<NetworkInterface[]>
+  getInterfaces(): Promise<InterfaceResult>
+  startFile(path: string): Promise<void>
   startCapture(iface: string): Promise<void>
   stopCapture(): Promise<void>
   startSimulated(path: string, speed: SpeedMultiplier): Promise<void>
   importPcap(): Promise<ImportResult>
+  selectPcapFile(): Promise<{ ok: true; path: string } | { ok: false }>
   exportPcap(): Promise<ExportResult>
+  applyFilter(expression: string): Promise<AnonPacket[]>
   clearBuffer(): Promise<void>
   setBufferCapacity(capacity: number): Promise<void>
   getAllPackets(): Promise<AnonPacket[]>
@@ -765,7 +885,6 @@ interface ElectronAPI {
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): Promise<Settings>
   // on (main → renderer push)
-  onPacket(handler: (p: AnonPacket) => void): Unsubscribe
   onCaptureStatus(handler: (s: CaptureStatus) => void): Unsubscribe
   onBufferOverflow(handler: (info: { dropped: number }) => void): Unsubscribe
   onBufferStats(handler: (stats: BufferStats) => void): Unsubscribe
@@ -781,7 +900,7 @@ interface ElectronAPI {
 
 ```
 App
-├── ThemeProvider (MUI)
+├── ThemeProvider
 ├── AppShell
 │   ├── Toolbar
 │   │   ├── InterfaceSelector
@@ -828,7 +947,7 @@ interface NetVisStore {
   // Filter
   filterExpression: string
   filterError: string | null
-  filteredPackets: AnonPacket[] // derived, recomputed on packets/filterExpression change
+  filteredPackets: AnonPacket[] // explicit stored state; refreshed lazily when the filter expression changes, clears, or an explicit refresh is requested; packet arrival alone does not trigger full re-evaluation
 
   // UI
   theme: 'light' | 'dark' | 'system'
@@ -841,13 +960,14 @@ interface NetVisStore {
 
   // Actions
   addPacket(p: AnonPacket): void
-  addPackets(ps: AnonPacket[]): void // batch add from IpcBatcher
+  addPackets(ps: AnonPacket[]): void
   setPackets(ps: AnonPacket[]): void
   clearPackets(): void
   selectPacket(id: string | null): void
   setFilter(expr: string): void
   setCaptureStatus(s: CaptureStatus): void
   setInterfaces(ifaces: NetworkInterface[]): void
+  setActiveInterface(iface: string | null): void
   setTheme(t: 'light' | 'dark' | 'system'): void
   toggleFocusVisualization(): void
   activateChallenge(id: string): void
@@ -891,7 +1011,7 @@ Rendering 100,000 raw DOM rows would block the browser's layout engine and make 
 const rowVirtualizer = useVirtualizer({
   count: filteredPackets.length,
   getScrollElement: () => scrollContainerRef.current,
-  estimateSize: () => 36, // px per row — 36px is the MUI TableRow default
+  estimateSize: () => 36, // px per row
   overscan: 10 // render 10 rows above/below viewport for smooth scroll
 })
 ```
@@ -903,7 +1023,7 @@ The outer `<div>` is set to `height: rowVirtualizer.getTotalSize()` so the scrol
 #### Packet_Detail_Inspector
 
 - Custom React component; no chart library needed
-- Renders `ParsedPacket.layers[]` as a collapsible tree using MUI `Accordion` or custom `TreeNode`
+- Renders `packet.layers[]` from the selected `AnonPacket` as a collapsible tree using Radix UI `Collapsible`
 - Each layer node header colored by `PROTOCOL_COLORS[layer.protocol]`
 - Expanded fields show: name, decoded value, byte offset
 - Hex strip at bottom highlights byte range on field hover/focus (Req 23.5)
@@ -1055,23 +1175,24 @@ Example entries:
 ]
 ```
 
-The `HelpIcon` component accepts a `helpId: string` prop, looks up the entry, and renders an MUI `Tooltip` with an `<IconButton aria-label="Help">` containing a `?` icon (Req 20.1).
+The `HelpIcon` component accepts a `helpId: string` prop, looks up the entry, and renders a Radix UI `Tooltip` wrapping a `<button aria-label="Help">` containing a `?` icon (Req 20.1).
 
 ### StatusBar Contextual Messages
 
-The `CaptureStatusMessage` component shows context-sensitive text based on `captureStatus.state` (Req 20.3, 20.4):
+The `CaptureStatusMessage` component shows context-sensitive text based on `captureStatus.state`:
 
-| State                   | Message                                                           |
-| ----------------------- | ----------------------------------------------------------------- |
-| `idle` (no file loaded) | "Select an interface above and press Start, or load a PCAP file." |
-| `idle` (file loaded)    | "File loaded — {n} packets. Press Start to begin a live capture." |
-| `active`                | "Capturing on {iface} — {pps} packets/sec"                        |
-| `simulated`             | "Replaying {filename} at {speed}×"                                |
-| `error`                 | Error message from `captureStatus.message`                        |
+| State       | Message                                                              |
+| ----------- | -------------------------------------------------------------------- |
+| `idle`      | "Select an interface above and press Start, or choose Import / Replay." |
+| `active`    | "Capturing on {iface} — {elapsed} elapsed — {pps} packets/sec"       |
+| `file`      | "File-loaded mode active — {path}"                                   |
+| `simulated` | "Replaying {path} at {speed}× — {pps} packets/sec"                   |
+| `error`     | Error message from `captureStatus.message`                           |
+| `stopped`   | "Capture stopped."                                                   |
 
 ### AdvancedSettingsPanel
 
-A collapsible MUI `Drawer` (anchor `"right"`) opened by a gear icon in the Toolbar. Contains (Req 20.2):
+A collapsible slide-in panel (Radix UI `Sheet`, anchor `"right"`) opened by a gear icon in the Toolbar. Contains (Req 20.2):
 
 | Setting         | Control                                       | Validation       |
 | --------------- | --------------------------------------------- | ---------------- |
@@ -1093,10 +1214,10 @@ All settings are persisted via `window.electronAPI.setSettings(patch)` on change
 expression    ::= term ( ( "AND" | "OR" ) term )*
 term          ::= [ "NOT" ] predicate
 predicate     ::= field comparator value
-field         ::= "proto" | "src" | "dst" | "port" | "len"
+field         ::= "proto" | "src" | "dst" | "port" | "len" | "ts"
 comparator    ::= "==" | "!=" | ">" | "<" | ">=" | "<="
 value         ::= quoted-string | number | ip-address | protocol-name
-protocol-name ::= "TCP" | "UDP" | "ICMP" | "DNS" | "ARP" | "OTHER"
+protocol-name ::= "TCP" | "UDP" | "ICMP" | "DNS" | "ARP" | "IPv6" | "OTHER"
 quoted-string ::= '"' [^"]* '"'
 number        ::= [0-9]+
 ip-address    ::= ipv4-address | ipv6-address
@@ -1111,7 +1232,7 @@ type FilterAST =
   | { kind: 'NOT'; operand: FilterAST }
   | { kind: 'PREDICATE'; field: Field; comparator: Comparator; value: FilterValue }
 
-type Field = 'proto' | 'src' | 'dst' | 'port' | 'len'
+type Field = 'proto' | 'src' | 'dst' | 'port' | 'len' | 'ts'
 type Comparator = '==' | '!=' | '>' | '<' | '>=' | '<='
 type FilterValue =
   | { kind: 'string'; v: string }
@@ -1176,7 +1297,7 @@ The five required challenges (Req 11.1):
 4. Filter by port number — apply `port == <N>` filter
 5. Compare packet lengths across protocols
 
-Challenge evaluation runs on a 500 ms debounced interval while a challenge is active (Req 11.3). Completion state persisted to `localStorage` under key `netvis:completedChallenges` (Req 11.5).
+Challenge evaluation runs on a 500 ms debounced interval while a challenge is active (Req 11.3). Completion state is persisted in `Settings_Store` as the canonical source of truth and exposed to the renderer through typed IPC (Req 11.5).
 
 ---
 
@@ -1191,27 +1312,26 @@ const PROTOCOL_COLORS: Record<ProtocolName, string> = {
   ICMP: '#F59E0B', // amber
   DNS: '#8B5CF6', // purple
   ARP: '#EF4444', // red
+  IPv6: '#06B6D4', // cyan
   OTHER: '#6B7280' // gray
 }
 ```
 
 Protocol colors are invariant across light/dark mode (Req 18.2).
 
-### MUI Theme Structure
+### Token Structure
 
 ```typescript
 const baseTokens = {
   typography: {
-    fontFamily: '"Inter", "Roboto", sans-serif',
-    fontSize: 14,          // body minimum (Req 18.4)
-    button: { fontSize: 13 },
+    fontFamily: '"Sora", system-ui, sans-serif',
+    fontFamilyMono: '"Space Mono", "Courier New", monospace',
+    fontSize: 14, // body minimum (Req 18.4)
+    button: { fontSize: 13 }
   },
-  spacing: 8,              // 8px base unit
-  shape: { borderRadius: 6 },
+  spacing: 4, // 4px base unit
+  shape: { borderRadius: 6 }
 }
-
-const lightTheme = createTheme({ ...baseTokens, palette: { mode: 'light', ... } })
-const darkTheme  = createTheme({ ...baseTokens, palette: { mode: 'dark',  ... } })
 ```
 
 Theme is stored in Zustand (`theme: 'light' | 'dark' | 'system'`). On first launch, `window.matchMedia('(prefers-color-scheme: dark)')` determines the initial value (Req 18.3). A toolbar toggle overrides it (Req 18.6).
@@ -1285,6 +1405,11 @@ interface NetworkInterface {
   isUp: boolean
 }
 
+// Interface enumeration result
+type InterfaceResult =
+  | { ok: true; interfaces: NetworkInterface[] }
+  | { ok: false; error: string; platformHint?: string }
+
 // Capture status
 type CaptureStatus =
   | { state: 'idle' }
@@ -1357,7 +1482,6 @@ This satisfies PERF-01–04 verification during development without shipping deb
 ```
 npm install cap                # live capture — libpcap / Npcap binding
 npm install pcap-parser        # file reading — .pcap and .pcapng support
-npm install @mui/material @emotion/react @emotion/styled
 npm install recharts d3
 npm install zustand
 npm install pino               # structured logging (replaces winston — lower overhead)
@@ -1379,7 +1503,7 @@ This must be re-run every time the Electron version changes. On Windows, Npcap m
 
 - Windows: bundles Npcap installer, prompts if absent (Req 25.1)
 - macOS/Linux: checks for libpcap at runtime, shows install guide if missing (Req 25.3)
-- All three platform targets already configured in `electron-builder.yml`
+- Platform packaging is intended to be provided through `electron-builder` configuration for all supported targets
 
 ---
 
@@ -1427,11 +1551,14 @@ The Logger MAY log packet metadata: timestamp, protocol name, packet length, lay
 
 ### FILE-SEC-01: PCAP File Path and Content Validation
 
-**Path validation:** Before opening any user-supplied file path, the application SHALL:
+Before opening any user-supplied PCAP path, the application SHALL:
 
 1. Resolve the path to an absolute path via `path.resolve()`
-2. Verify the resolved path does not escape the user's home directory or a designated import directory
-3. Verify the file exists and is readable via `fs.access()` before passing to `pcap-parser`
+2. Verify the resolved target exists
+3. Verify the resolved target is a regular readable file via `fs.access()` and file-stat checks
+4. Reject directories, unreadable files, and invalid file targets before passing the path to any parser or replay source
+
+For export targets, the application SHALL validate the resolved target path and write via a temporary file plus atomic rename so that a failed export does not leave a partial output file at the selected location.
 
 **Oversized frame guard (PCAP zip-bomb mitigation):** A maliciously crafted PCAP file can claim a `capturedLength` of several gigabytes in a packet record header, causing `pcap-parser` to attempt a multi-gigabyte allocation before the error surfaces. The application SHALL enforce a maximum frame size guard in `PcapFileSource`:
 
@@ -1441,7 +1568,7 @@ const MAX_FRAME_SIZE = 65535 // standard Ethernet MTU ceiling
 parser.on('packet', (pkt) => {
   if (pkt.header.capturedLength > MAX_FRAME_SIZE) {
     Logger.warn('PcapFileSource', `Oversized frame dropped: ${pkt.header.capturedLength} bytes`)
-    return // drop — do not allocate
+    return
   }
   // ... normal path
 })
@@ -1477,7 +1604,7 @@ font-src 'self';
 connect-src 'none';
 ```
 
-`unsafe-inline` for `style-src` is required by MUI's CSS-in-JS runtime. `connect-src 'none'` explicitly blocks all outbound network requests from the renderer — the application has no legitimate reason to make HTTP requests from the renderer process.
+`connect-src 'none'` explicitly blocks all outbound network requests from the renderer — the application has no legitimate reason to make HTTP requests from the renderer process.
 
 ---
 
@@ -1519,7 +1646,7 @@ _For any_ PCAP file, packets replayed via `Simulated_Capture` must appear in the
 
 ### Property 4: Parser layer ordering
 
-_For any_ raw packet bytes representing a valid Ethernet frame, `Parser.parse()` must return layers in the order Ethernet → IP → Transport (TCP/UDP/ICMP) → Application (DNS), with no layer appearing before its encapsulating layer.
+_For any_ raw packet bytes representing a valid supported Ethernet frame, `Parser.parse()` must return layers in encapsulation order according to the decoded protocol path: Ethernet → ARP, or Ethernet → IPv4/IPv6 → TCP/UDP/ICMP, with DNS included where present over UDP or TCP. No layer may appear before its encapsulating layer.
 
 **Validates: Requirements 3.1, 3.2**
 
@@ -1575,7 +1702,7 @@ _For any_ set of `AnonPacket` objects, the data derived for `Protocol_Chart` mus
 
 ### Property 11: Field explanation completeness
 
-_For any_ protocol in `{Ethernet, IPv4, TCP, UDP, ICMP, DNS}` and any standard field defined in Requirement 10.2, a `FieldExplanation` entry must exist in the explanation data with a non-empty `explanation` string. For fields with well-known enumerated values, the `symbolicValues` map must contain an entry for each standard enumeration value.
+*For any* protocol in `{Ethernet, IPv4, IPv6, ARP, TCP, UDP, ICMP, DNS}` and any standard field defined in Requirement 10.2, a `FieldExplanation` entry must exist in the explanation data with a non-empty `explanation` string. For fields with well-known enumerated values, the `symbolicValues` map must contain an entry for each standard enumeration value.
 
 **Validates: Requirements 10.2, 10.3**
 
@@ -1599,7 +1726,7 @@ _For any_ `Challenge` in the challenge library, activating it must result in a r
 
 ### Property 14: Challenge completion persistence
 
-_For any_ challenge that has been marked complete, after the completion is recorded, querying `localStorage` under key `netvis:completedChallenges` must return a list that includes that challenge's `id`. This must hold across simulated application restarts (re-reading from `localStorage`).
+*For any* challenge that has been marked complete, after the completion is recorded, querying `Settings_Store` must return a settings object whose `completedChallenges` list includes that challenge's `id`. This must hold across simulated application restarts by re-reading the persisted settings state.
 
 **Validates: Requirements 11.5**
 
@@ -1623,15 +1750,15 @@ _For any_ call to `Logger.log(severity, component, message)`, the written log en
 
 ### Property 17: Input sanitization
 
-_For any_ user-supplied string (filter expression or file path), the sanitization function must return a string that contains no path traversal sequences (`../`, `..\`), no null bytes, and no shell metacharacters (`; | & $ \` > <`).
+_For any_ renderer-supplied file path, validation must reject null bytes, unreadable targets, directories, and invalid file targets before any filesystem or parser operation begins. _For any_ renderer-supplied filter expression, the main process must treat it as data for the `Filter_Engine` grammar only: it may be schema-validated, length-limited, and parsed, but it must not be passed to shell execution or interpreted as a filesystem path.
 
-**Validates: Requirements 15.2**
+**Validates: Requirements 15.2, 9.1**
 
 ---
 
 ### Property 18: Protocol color invariant
 
-_For any_ protocol name in `{TCP, UDP, ICMP, DNS, ARP, OTHER}`, `PROTOCOL_COLORS[proto]` must equal the exact hex value specified in Requirement 18.2. This value must be identical regardless of the current theme (light or dark).
+_For any_ protocol name in `{TCP, UDP, ICMP, DNS, ARP, IPv6, OTHER}`, `PROTOCOL_COLORS[proto]` must equal the exact hex value specified in the design's protocol color map. This value must be identical regardless of the current theme (light or dark).
 
 **Validates: Requirements 18.2, 22.3, 23.2, 24.5, 26.5**
 
@@ -1770,7 +1897,7 @@ Each property test must include a comment tag in the format:
 | P15      | Buffer clear resets all state        | Arbitrary store state                                                                      |
 | P16      | Logger entry structure               | Arbitrary (severity, component, message) tuples                                            |
 | P17      | Input sanitization                   | `fc.string()` including path traversal and shell metacharacter sequences                   |
-| P18      | Protocol color invariant             | Enumerate all 6 protocol names                                                             |
+| P18      | Protocol color invariant             | Enumerate all 7 protocol names                                                             |
 | P19      | Timeline bucket construction         | Arbitrary packet array with timestamps spanning 0–120 seconds                              |
 | P20      | Time-range filter generation         | Arbitrary bucket timestamp + arbitrary packet array                                        |
 | P21      | IP flow graph construction           | Arbitrary array of IP packet pairs                                                         |
@@ -1804,3 +1931,142 @@ src/
 ```
 
 Test runner: **Vitest** (already compatible with the electron-vite setup). Run with `vitest --run` for single-pass CI execution.
+
+---
+
+## Architecture Normalization Decisions
+
+### Overview
+
+This section records enduring architecture decisions that must remain true regardless of implementation status.
+
+These are normative design decisions, not completion tracking statements.
+
+### Decision 1: File Dialog Separation (pcap:selectFile)
+
+**Context:** Simulated replay needs both a file path and a speed multiplier.
+
+**Decision:** Create a separate `pcap:selectFile` IPC channel that only opens a file dialog and returns the selected path. This keeps dialog responsibility separate from capture-start responsibility.
+
+**Rationale:**
+
+- Maintains single responsibility principle
+- The `capture:startSimulated` handler should start capture given a path, not manage UI dialogs
+- Makes testing easier and keeps the IPC contract clean
+
+**Implementation:**
+
+- Add `pcap:selectFile` to Channel Inventory (renderer → main, returns `{ ok: true, path: string } | { ok: false }`)
+- Add `selectPcapFile()` method to ElectronAPI interface in preload
+- Handler opens file dialog with .pcap/.pcapng filters, returns path only (doesn't load or stream file)
+
+### Decision 2: Speed Selection UI Sequence
+
+**Context:** Speed selector and file dialog are two different UI surfaces.
+
+**Chosen Approach:**
+
+1. Present speed selector first (inline dropdown in CaptureControls)
+2. After speed selected, call `pcap:selectFile` to open file dialog
+3. After both confirmed, call `startSimulated(path, speed)`
+
+**State Management:** Selected speed stored as local component state in `CaptureControls` (ephemeral per-session), not in Zustand store.
+
+**Rationale:** Speed is a transient UI value that doesn't need to persist across sessions or be shared with other components.
+
+### Decision 3: Buffer Capacity Shrink Semantics
+
+**Context:** When shrinking buffer capacity below current packet count, must decide which packets to keep.
+
+**Decision:** Retain most recent `newCapacity` packets, drop oldest. This is consistent with ring buffer overflow semantics already defined in Req 12.2.
+
+**Implementation:** PacketBuffer.setCapacity() method:
+
+- Get existing packets via getAll() (chronological order)
+- If shrinking: slice to keep most recent packets
+- Create new buffer array of size newCapacity
+- Copy packets into new buffer
+- Reset head pointer
+- Emit 'change' event
+
+### Decision 4: Filter Staleness Model (Lazy Re-evaluation)
+
+**Decision:** `filteredPackets` is explicit renderer store state and uses a lazy refresh model.
+
+**Normalized behavior:**
+
+* `filteredPackets` remains explicit state in the renderer store
+* changing or clearing the filter expression refreshes `filteredPackets`
+* packet arrival alone does not trigger full filter re-evaluation
+* an explicit refresh path may request re-evaluation when needed
+
+**Rationale:**
+
+* avoids repeated full-buffer scans during active capture
+* preserves responsiveness for large buffers
+* keeps the filter model canonical and unambiguous
+
+### Decision 5: FILE-SEC-01 for startSimulated
+
+**Context:** The `capture:startSimulated` handler accepts a file path from the renderer.
+
+**Decision:** Add FILE-SEC-01 path validation matching `pcap:import`:
+
+- path.resolve() to normalize
+- fs.access() to verify file exists and is readable
+- Verify file is not a directory
+
+**Rationale:** Security boundary — renderer-provided paths must be validated before use in main process file operations.
+
+### Decision 6: Single Anonymization in filter:apply
+
+**Context:** The `filter:apply` handler was anonymizing packets twice (once inside filter loop, once before return).
+
+**Decision:** Anonymize once upfront before filtering:
+
+1. Get allParsed from buffer
+2. Anonymize once: `const allAnon = allParsed.map(p => Anonymizer.anonymize(p))`
+3. Filter AnonPacket[]: `const matched = allAnon.filter(anon => evaluate(result.ast, anon))`
+4. Return matched directly (already anonymized)
+
+**Rationale:** Ensures filtered packet hashes match `buffer:getAll` hashes for the same packets. Double anonymization caused inconsistent hashes.
+
+### Decision 7: 'ts' Field Support in Filter Engine
+
+**Context:** Timeline click generates `ts >= ${startMs} AND ts < ${endMs}` expressions, but lexer doesn't recognize 'ts' as a valid field.
+
+**Decision:** Add 'ts' to filter engine field support:
+
+- Lexer: Add 'ts' to FIELDS set
+- Parser: Add 'ts' to FieldName type
+- Evaluator: Add case 'ts' that compares against `packet.timestamp` (Unix milliseconds)
+
+**Technical Details:**
+
+- AnonPacket.timestamp exists and is a number (Unix milliseconds)
+- parseInt handles large timestamps (13 digits < Number.MAX_SAFE_INTEGER)
+- Timeline filter values are Unix millisecond timestamps like `ts >= 1714123456000`
+
+### Decision 8: WorkerOutMessage Type Correction
+
+**Context:** Type definition says `packets: AnonPacket[]` but worker sends `ParsedPacket[]`.
+
+**Decision:** Change type to `packets: ParsedPacket[]` with comment explaining IpcBatcher anonymizes before sending to renderer.
+
+**Rationale:** Type system should match runtime behavior. This is a documentation fix with no runtime impact (TypeScript erased at runtime).
+
+---
+
+> The above bugfix decisions are now incorporated into the primary interfaces and contracts in this document.
+
+### Implementation Order
+
+Based on dependencies:
+
+1. PacketBuffer.setCapacity() (prerequisite for buffer:setCapacity handler)
+2. WorkerOutMessage type fix (doc cleanup, no dependencies)
+3. Capture control IPC handlers (capture:start, capture:stop, capture:getInterfaces, capture:startSimulated with FILE-SEC-01)
+4. Buffer management IPC handlers (buffer:clear, buffer:setCapacity — now unblocked)
+5. Double anonymization fix in filter:apply
+6. 'ts' field support in filter engine (lexer, parser, evaluator)
+7. Simulated replay UI (pcap:selectFile handler, preload method, CaptureControls speed selector)

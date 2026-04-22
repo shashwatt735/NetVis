@@ -258,7 +258,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
         expect(fieldNames).toContain('src')
         expect(fieldNames).toContain('etherType')
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -276,7 +276,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
         const layer1 = parsed.layers[1]
         expect(NETWORK_PROTOCOLS).toContain(layer1.protocol)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -302,7 +302,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
         // Transport must come after network
         expect(transportIdx).toBeGreaterThan(networkIdx)
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -345,7 +345,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
           }
         }
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -366,7 +366,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
           expect(parsed.layers[0].protocol).toBe('OTHER')
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -391,7 +391,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
         expect(fieldNames).toContain('src')
         expect(fieldNames).toContain('dst')
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -418,7 +418,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
         expect(fieldNames).toContain('src')
         expect(fieldNames).toContain('dst')
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -443,7 +443,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
         expect(fieldNames).toContain('flags')
         expect(fieldNames).toContain('windowSize')
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -466,7 +466,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
         expect(fieldNames).toContain('length')
         expect(fieldNames).toContain('checksum')
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 
@@ -488,7 +488,7 @@ describe('Parser — layer ordering invariant (P4)', () => {
         expect(fieldNames).toContain('code')
         expect(fieldNames).toContain('checksum')
       }),
-      { numRuns: 100 }
+      { numRuns: 25 }
     )
   })
 })

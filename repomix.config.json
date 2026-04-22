@@ -5,19 +5,32 @@
   "ignore": {
     "useGitignore": true,
     "customPatterns": [
-      ".kiro/specs/**",
+      ".kiro/**",
+      ".git/**",
+      ".vscode/**",
+      "node_modules/**",
+      "build/**",
+      "out/**",
+      "dist/**",
+      "docs/**",
+      "resources/**",
       "repomix-output.xml",
       "repomix.config.json",
       "package-lock.json",
-      "tsconfig.node.tsbuildinfo",
-      "*.yml",
-      "*.yaml",
-      "resources/**",
-      ".vscode/**",
+      "*.log",
+      "*.log.*",
+      "*.tsbuildinfo",
+      ".DS_Store",
+      ".eslintcache",
       ".editorconfig",
       ".prettierignore",
       ".prettierrc.yaml",
-      "eslint.config.mjs"
+      ".gitignore",
+      ".gitattributes",
+      "*.yml",
+      "*.yaml",
+      "eslint.config.mjs",
+      "electron-builder.yml"
     ]
   }
 }
