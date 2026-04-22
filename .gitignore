@@ -20,6 +20,7 @@ Thumbs.db
 
 # Electron specific
 electron-builder-effective-config.yaml
+electron.vite.config.*.mjs
 
 # TypeScript
 *.tsbuildinfo
