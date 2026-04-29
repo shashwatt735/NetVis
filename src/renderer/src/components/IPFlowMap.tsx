@@ -4,7 +4,7 @@ import * as d3 from 'd3'
 import { useNetVisStore } from '../store'
 import { PROTOCOL_COLORS, protocolColorKey } from '../constants/protocol-colors'
 import { PhasePlaceholder } from './PhasePlaceholder'
-import { buildFlowGraph, buildNodeFilter, buildEdgeFilter, type FlowNode, type FlowEdge, type FlowGraph } from './ip-flow-utils'
+import { buildFlowGraph, buildNodeFilter, buildEdgeFilter } from './ip-flow-utils'
 
 // ─── D3 simulation types ──────────────────────────────────────────────────────
 
@@ -166,7 +166,7 @@ function IPFlowMapInner(): React.JSX.Element {
             text.setAttribute('dominant-baseline', 'central')
             text.setAttribute('font-size', '8')
             text.setAttribute('font-family', 'var(--font-data)')
-            text.setAttribute('fill', '#fff')
+            text.setAttribute('fill', 'var(--nv-text-primary)')
             text.setAttribute('pointer-events', 'none')
             text.setAttribute('aria-hidden', 'true')
             // Show last octet or last segment for brevity
@@ -336,16 +336,19 @@ function IPFlowMapInner(): React.JSX.Element {
                             </tr>
                         </thead>
                         <tbody>
-                            {displayEdges.map((edge) => (
+                            {displayEdges.map((edge, index) => (
                                 <tr
                                     key={edge.id}
-                                    style={{ cursor: 'pointer' }}
+                                    style={{
+                                        cursor: 'pointer',
+                                        borderBottom: index < displayEdges.length - 1 ? '1px solid var(--nv-border-subtle)' : 'none'
+                                    }}
                                     onClick={() => handleEdgeClick(edge.source, edge.target)}
                                 >
-                                    <td style={{ padding: '2px 6px', color: 'var(--nv-text-secondary)', borderBottom: '1px solid var(--nv-border-subtle)' }}>{edge.source}</td>
-                                    <td style={{ padding: '2px 6px', color: 'var(--nv-text-secondary)', borderBottom: '1px solid var(--nv-border-subtle)' }}>{edge.target}</td>
-                                    <td style={{ padding: '2px 6px', color: 'var(--nv-text-secondary)', borderBottom: '1px solid var(--nv-border-subtle)' }}>{edge.packetCount}</td>
-                                    <td style={{ padding: '2px 6px', color: PROTOCOL_COLORS[protocolColorKey(edge.dominantProtocol)].color, borderBottom: '1px solid var(--nv-border-subtle)' }}>{edge.dominantProtocol}</td>
+                                    <td style={{ padding: '2px 6px', color: 'var(--nv-text-secondary)' }}>{edge.source}</td>
+                                    <td style={{ padding: '2px 6px', color: 'var(--nv-text-secondary)' }}>{edge.target}</td>
+                                    <td style={{ padding: '2px 6px', color: 'var(--nv-text-secondary)' }}>{edge.packetCount}</td>
+                                    <td style={{ padding: '2px 6px', color: PROTOCOL_COLORS[protocolColorKey(edge.dominantProtocol)].color }}>{edge.dominantProtocol}</td>
                                 </tr>
                             ))}
                         </tbody>

@@ -6,6 +6,21 @@
     <title>NetVis</title>
     <!-- APP-SEC-01: CSP is set programmatically in main process based on environment.
          No meta tag here to avoid breaking Vite HMR in development. -->
+    <!-- Theme flash prevention: apply persisted theme class synchronously before React renders -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('nv-theme');
+          if (t === 'dark') document.documentElement.classList.add('dark');
+          else if (t === 'warm-dark') document.documentElement.classList.add('warm-dark');
+          else if (t === 'system') {
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+              document.documentElement.classList.add('dark');
+            }
+          }
+        } catch (e) { }
+      })();
+    </script>
   </head>
 
   <body>

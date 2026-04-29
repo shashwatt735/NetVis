@@ -401,7 +401,7 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
 
         await fs.promises.writeFile(tempPath, globalHeader)
 
-        // Write each packet record via Parser.print()
+        // Write each packet record after replacing sensitive raw bytes.
         for (const parsedPacket of packets) {
           if (!parsedPacket.rawData) {
             Logger.warn('IPC', 'pcap:export skipping packet with no rawData', {
@@ -409,7 +409,7 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
             })
             continue
           }
-          const record = Parser.print(parsedPacket)
+          const record = Parser.print(Anonymizer.sanitizeForExport(parsedPacket))
           await fs.promises.appendFile(tempPath, record)
         }
 

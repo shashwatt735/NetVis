@@ -9,6 +9,8 @@ export type ProtocolName = 'TCP' | 'UDP' | 'ICMP' | 'DNS' | 'ARP' | 'IPv4' | 'IP
 
 export type SpeedMultiplier = 0.5 | 1 | 2 | 5
 
+export type Theme = 'light' | 'dark' | 'warm-dark' | 'system'
+
 // ─── Raw packet (out of PacketSource, into Parser) ───────────────────────────
 
 /**
@@ -158,7 +160,7 @@ export interface ExportResult {
 
 export interface Settings {
   bufferCapacity: number // 1000–100000, default 10000
-  theme: 'light' | 'dark' | 'system'
+  theme: Theme
   welcomeSeen: boolean
   completedChallenges: string[]
   reducedMotion: boolean // mirrors OS preference; user can override

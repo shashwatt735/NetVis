@@ -1,60 +1,88 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type React from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useNetVisStore } from '../store'
 import type { AnonPacket } from '../../../shared/capture-types'
 import { PROTOCOL_COLORS, protocolColorKey } from '../constants/protocol-colors'
 import { ANIMATION } from '../constants/animations'
+import { formatRelativeTimestamp, getPacketRoleInfo } from '../lib/packet-analysis'
+import { useNetVisStore } from '../store'
 import { ProtocolBadge } from './domain'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatTimestamp(ts: number): string {
-  const d = new Date(ts)
-  const hh = d.getHours().toString().padStart(2, '0')
-  const mm = d.getMinutes().toString().padStart(2, '0')
-  const ss = d.getSeconds().toString().padStart(2, '0')
-  const ms = d.getMilliseconds().toString().padStart(3, '0')
-  return `${hh}:${mm}:${ss}.${ms}`
+function captureStartMs(packets: AnonPacket[]): number {
+  if (packets.length === 0) return Date.now()
+  return packets.reduce((min, packet) => Math.min(min, packet.timestamp), packets[0]!.timestamp)
 }
 
-function formatPacketAriaLabel(packet: AnonPacket): string {
-  return `${formatTimestamp(packet.timestamp)}, from ${packet.srcAddress} to ${packet.dstAddress}, ${packet.protocol}, ${packet.length} bytes`
+function roleColors(packet: AnonPacket): { color: string; dim: string; border: string } {
+  const token = PROTOCOL_COLORS[protocolColorKey(packet.protocol)]
+  return { color: token.color, dim: token.dim, border: token.border }
 }
-
-function protoColor(proto: string): string {
-  const key = protocolColorKey(proto)
-  return PROTOCOL_COLORS[key].color
-}
-
-function protoDim(proto: string): string {
-  const key = protocolColorKey(proto)
-  return PROTOCOL_COLORS[key].dim
-}
-
-// ─── Row ─────────────────────────────────────────────────────────────────────
 
 interface RowProps {
   packet: AnonPacket
-  isSelected: boolean
-  isNew: boolean
   index: number
+  startMs: number
+  isSelected: boolean
+  isDimmed: boolean
+  isNew: boolean
   totalPackets: number
   onSelect: (id: string) => void
-  onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, index: number) => void
+  onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>, index: number) => void
+}
+
+function RoleBadge({ packet }: { packet: AnonPacket }): React.JSX.Element {
+  const roleInfo = getPacketRoleInfo(packet)
+  const role = roleInfo.tableLabel
+  if (!role) {
+    return (
+      <span aria-label="No role" style={{ color: 'var(--nv-text-tertiary)' }}>
+        —
+      </span>
+    )
+  }
+  const token = PROTOCOL_COLORS[protocolColorKey(packet.protocol)]
+  return (
+    <span
+      title={roleInfo.description}
+      aria-label={roleInfo.description}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 18,
+        maxWidth: '100%',
+        padding: '0 5px',
+        borderRadius: 'var(--nv-radius-sm)',
+        border: `1px solid ${token.border}`,
+        backgroundColor: token.dim,
+        color: token.color,
+        fontFamily: 'var(--font-data)',
+        fontSize: 9.5,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis'
+      }}
+    >
+      {role}
+    </span>
+  )
 }
 
 function PacketRow({
   packet,
-  isSelected,
-  isNew,
   index,
+  startMs,
+  isSelected,
+  isDimmed,
+  isNew,
   totalPackets,
   onSelect,
   onKeyDown
 }: RowProps): React.JSX.Element {
-  const color = protoColor(packet.protocol)
-  const dim = protoDim(packet.protocol)
+  const colors = roleColors(packet)
+  const roleInfo = getPacketRoleInfo(packet)
+  const timeLabel = formatRelativeTimestamp(packet.timestamp, startMs)
 
   return (
     <div
@@ -63,78 +91,62 @@ function PacketRow({
       aria-selected={isSelected}
       aria-posinset={index + 1}
       aria-setsize={totalPackets}
-      aria-label={formatPacketAriaLabel(packet)}
+      aria-label={`${packet.protocol} ${roleInfo.tableLabel} packet at ${timeLabel}, from ${packet.srcAddress} to ${packet.dstAddress}, ${packet.length} bytes`}
       tabIndex={isSelected ? 0 : -1}
       onClick={() => onSelect(packet.id)}
-      onKeyDown={(e) => onKeyDown(e, index)}
+      onKeyDown={(event) => onKeyDown(event, index)}
+      className="nv-focus"
       style={{
         display: 'grid',
-        gridTemplateColumns: '110px 1fr 1fr 60px 60px',
+        gridTemplateColumns: '72px 56px 92px 18px minmax(132px, 1fr) minmax(132px, 1fr) 52px',
         alignItems: 'center',
-        height: 36,
-        padding: '0 12px',
-        gap: 8,
+        minHeight: 32,
+        padding: '0 8px',
+        gap: 14,
         cursor: 'pointer',
-        backgroundColor: isSelected ? dim : 'transparent',
-        borderLeft: isSelected ? `2px solid ${color}` : '2px solid transparent',
+        opacity: isDimmed ? 0.38 : 1,
+        backgroundColor: isSelected ? colors.dim : 'transparent',
+        borderLeft: isSelected ? `2px solid ${colors.color}` : '2px solid transparent',
         borderBottom: '1px solid var(--nv-border-subtle)',
         animation: isNew
           ? `nv-row-in ${ANIMATION.ROW_FADE_IN_MS}ms var(--nv-ease-enter) both`
           : undefined,
-        outline: 'none',
-        transition: 'background-color 80ms ease'
+        transition: 'background-color 80ms ease, opacity 80ms ease'
       }}
-      // Focus ring via CSS class
-      className="nv-focus"
     >
-      {/* Timestamp */}
       <span
-        style={{
-          fontFamily: 'var(--font-data)',
-          fontSize: 11,
-          color: 'var(--nv-text-tertiary)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        }}
+        title="Time since the first packet in this capture."
+        style={{ fontFamily: 'var(--font-data)', fontSize: 11, color: 'var(--nv-text-tertiary)' }}
       >
-        {formatTimestamp(packet.timestamp)}
+        {timeLabel}
       </span>
-
-      {/* Source */}
+      <ProtocolBadge proto={packet.protocol} size="sm" />
+      <RoleBadge packet={packet} />
+      <span aria-hidden style={{ width: 0 }} />
       <span
         style={{
           fontFamily: 'var(--font-data)',
           fontSize: 12,
           color: 'var(--nv-text-secondary)',
-          whiteSpace: 'nowrap',
           overflow: 'hidden',
-          textOverflow: 'ellipsis'
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
         }}
       >
         {packet.srcAddress}
       </span>
-
-      {/* Destination */}
       <span
         style={{
           fontFamily: 'var(--font-data)',
           fontSize: 12,
           color: 'var(--nv-text-secondary)',
-          whiteSpace: 'nowrap',
           overflow: 'hidden',
-          textOverflow: 'ellipsis'
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
         }}
       >
         {packet.dstAddress}
       </span>
-
-      {/* Protocol badge */}
-      <span>
-        <ProtocolBadge proto={packet.protocol} size="sm" />
-      </span>
-
-      {/* Length */}
       <span
         style={{
           fontFamily: 'var(--font-data)',
@@ -144,105 +156,106 @@ function PacketRow({
           whiteSpace: 'nowrap'
         }}
       >
-        {packet.length}B
+        {packet.length}
       </span>
     </div>
   )
 }
 
-// ─── Header ──────────────────────────────────────────────────────────────────
-
 function PacketListHeader(): React.JSX.Element {
+  const headers: Array<{ label: string; align: 'left' | 'center' | 'right'; title?: string }> = [
+    {
+      label: 'TIME',
+      align: 'left' as const,
+      title: 'Time since the first packet in this capture.'
+    },
+    { label: 'PROTOCOL', align: 'center' as const },
+    { label: 'ROLE', align: 'center' as const },
+    { label: '', align: 'left' as const }, // spacer
+    { label: 'SOURCE', align: 'left' as const },
+    { label: 'DESTINATION', align: 'left' as const },
+    { label: 'LENGTH', align: 'right' as const }
+  ]
   return (
     <div
-      aria-hidden="true"
+      aria-hidden
       style={{
         display: 'grid',
-        gridTemplateColumns: '110px 1fr 1fr 60px 60px',
+        gridTemplateColumns: '72px 56px 92px 18px minmax(132px, 1fr) minmax(132px, 1fr) 52px',
         alignItems: 'center',
         height: 28,
-        padding: '0 12px',
-        gap: 8,
+        padding: '0 8px',
+        gap: 14,
         backgroundColor: 'var(--nv-bg-surface-2)',
         borderBottom: '1px solid var(--nv-border-default)',
         flexShrink: 0
       }}
     >
-      {(['Time', 'Source', 'Destination', 'Proto', 'Len'] as const).map((label) => (
+      {headers.map((header, index) => (
         <span
-          key={label}
+          key={`${header.label}-${index}`}
+          title={header.title}
           style={{
-            fontFamily: 'var(--font-ui)',
             fontSize: 10,
-            fontWeight: 500,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            color: 'var(--nv-text-tertiary)'
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            color: 'var(--nv-text-tertiary)',
+            textAlign: header.align
           }}
         >
-          {label}
+          {header.label}
         </span>
       ))}
     </div>
   )
 }
 
-// ─── PacketList ───────────────────────────────────────────────────────────────
-
-/**
- * Virtualized packet list.
- * Req 5.1–5.5, 16.1, 16.3, 21.1
- * - useVirtualizer: estimateSize 36, overscan 10
- * - Row fade-in animation on new packets
- * - Keyboard navigation: arrow keys + Enter
- * - Accessible listbox semantics for packet selection
- * - Empty placeholder (Req 5.4)
- * - Filter-empty message (Req 20.5)
- */
 export function PacketList(): React.JSX.Element {
-  const filteredPackets = useNetVisStore((s) => s.filteredPackets)
   const packets = useNetVisStore((s) => s.packets)
+  const filteredPackets = useNetVisStore((s) => s.filteredPackets)
   const selectedPacketId = useNetVisStore((s) => s.selectedPacketId)
   const filterExpression = useNetVisStore((s) => s.filterExpression)
   const captureStatus = useNetVisStore((s) => s.captureStatus)
   const selectPacket = useNetVisStore((s) => s.selectPacket)
+  const parentRef = useRef<HTMLDivElement>(null)
+  const prevCountRef = useRef(0)
+  const newIdsRef = useRef<Set<string>>(new Set())
 
+  const filterActive = filterExpression.trim().length > 0
+  const filteredIds = useMemo(
+    () => new Set(filteredPackets.map((packet) => packet.id)),
+    [filteredPackets]
+  )
+  const displayPackets = filterActive ? filteredPackets : packets
+  const startMs = useMemo(() => captureStartMs(packets), [packets])
   const isCapturing =
     captureStatus.state === 'active' ||
     captureStatus.state === 'file' ||
     captureStatus.state === 'simulated'
 
-  const parentRef = useRef<HTMLDivElement>(null)
-  // Track which packet IDs are "new" for the fade-in animation
-  const prevCountRef = useRef(0)
-  const newIdsRef = useRef<Set<string>>(new Set())
-
-  // Mark newly arrived packets
   useEffect(() => {
     const prev = prevCountRef.current
-    const curr = filteredPackets.length
+    const curr = displayPackets.length
     if (curr > prev) {
-      const newSlice = filteredPackets.slice(prev)
-      newSlice.forEach((p) => newIdsRef.current.add(p.id))
-      // Clear "new" flag after animation completes
+      const newSlice = displayPackets.slice(prev)
+      newSlice.forEach((packet) => newIdsRef.current.add(packet.id))
       const timer = setTimeout(() => {
-        newSlice.forEach((p) => newIdsRef.current.delete(p.id))
+        newSlice.forEach((packet) => newIdsRef.current.delete(packet.id))
       }, ANIMATION.ROW_FADE_IN_MS + 50)
       prevCountRef.current = curr
       return () => clearTimeout(timer)
     }
     prevCountRef.current = curr
     return undefined
-  }, [filteredPackets])
+  }, [displayPackets])
 
   const virtualizer = useVirtualizer({
-    count: filteredPackets.length,
+    count: displayPackets.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 36,
+    estimateSize: () => 32,
     overscan: 10
   })
 
-  // Auto-scroll to bottom when new packets arrive (only if already near bottom)
   const wasAtBottomRef = useRef(true)
   useEffect(() => {
     const el = parentRef.current
@@ -255,57 +268,39 @@ export function PacketList(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    if (wasAtBottomRef.current && filteredPackets.length > 0 && isCapturing) {
-      virtualizer.scrollToIndex(filteredPackets.length - 1, { align: 'end' })
+    if (wasAtBottomRef.current && displayPackets.length > 0 && isCapturing) {
+      virtualizer.scrollToIndex(displayPackets.length - 1, { align: 'end' })
     }
-  }, [filteredPackets.length, virtualizer, isCapturing])
+  }, [displayPackets.length, isCapturing, virtualizer])
 
-  // Keyboard navigation
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>, index: number) => {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        const next = Math.min(index + 1, filteredPackets.length - 1)
-        const nextPacket = filteredPackets[next]
-        if (nextPacket) {
-          selectPacket(nextPacket.id)
-          virtualizer.scrollToIndex(next, { align: 'auto' })
-        }
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        const prev = Math.max(index - 1, 0)
-        const prevPacket = filteredPackets[prev]
-        if (prevPacket) {
-          selectPacket(prevPacket.id)
-          virtualizer.scrollToIndex(prev, { align: 'auto' })
-        }
-      } else if (e.key === 'Enter') {
-        e.preventDefault()
-        const packet = filteredPackets[index]
+    (event: React.KeyboardEvent<HTMLDivElement>, index: number) => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return
+      event.preventDefault()
+      if (event.key === 'Enter') {
+        const packet = displayPackets[index]
         if (packet) selectPacket(packet.id)
+        return
+      }
+      const nextIndex =
+        event.key === 'ArrowDown'
+          ? Math.min(index + 1, displayPackets.length - 1)
+          : Math.max(index - 1, 0)
+      const nextPacket = displayPackets[nextIndex]
+      if (nextPacket) {
+        selectPacket(nextPacket.id)
+        virtualizer.scrollToIndex(nextIndex, { align: 'auto' })
       }
     },
-    [filteredPackets, selectPacket, virtualizer]
+    [displayPackets, selectPacket, virtualizer]
   )
 
-  // ── Empty states ──────────────────────────────────────────────────────────
-
-  // No packets at all (Req 5.4)
   if (packets.length === 0) {
-    const waitingForTraffic = isCapturing
     return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          overflow: 'hidden'
-        }}
-      >
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <PacketListHeader />
         <div
           role="status"
-          aria-label="No packets captured"
           style={{
             flex: 1,
             display: 'flex',
@@ -314,37 +309,29 @@ export function PacketList(): React.JSX.Element {
             justifyContent: 'center',
             gap: 8,
             color: 'var(--nv-text-tertiary)',
-            fontFamily: 'var(--font-ui)',
+            textAlign: 'center',
             fontSize: 13
           }}
         >
-          <span style={{ fontSize: 28 }}>📡</span>
-          <span>{waitingForTraffic ? 'Capture is running. Waiting for packets...' : 'No packets captured yet.'}</span>
-          <span style={{ fontSize: 11, textAlign: 'center', maxWidth: 320 }}>
-            {waitingForTraffic
-              ? 'If this stays empty, choose a different adapter (prefer Ethernet/Wi-Fi over Loopback/virtual) and generate traffic by opening a website or running ping.'
-              : 'Select an interface and press Start to begin.'}
+          <strong style={{ color: 'var(--nv-text-primary)', fontSize: 15, fontWeight: 600 }}>
+            No packets yet
+          </strong>
+          <span>
+            Start a live capture, replay, or import a PCAP file
+            <br />
+            to begin.
           </span>
         </div>
       </div>
     )
   }
 
-  // Packets exist but filter returns nothing (Req 20.5)
-  if (filteredPackets.length === 0 && filterExpression.trim()) {
+  if (filterActive && filteredPackets.length === 0) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          overflow: 'hidden'
-        }}
-      >
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <PacketListHeader />
         <div
           role="status"
-          aria-label="No packets match filter"
           style={{
             flex: 1,
             display: 'flex',
@@ -353,63 +340,39 @@ export function PacketList(): React.JSX.Element {
             justifyContent: 'center',
             gap: 8,
             color: 'var(--nv-text-tertiary)',
-            fontFamily: 'var(--font-ui)',
+            textAlign: 'center',
             fontSize: 13
           }}
         >
-          <span style={{ fontSize: 28 }}>🔍</span>
-          <span>No packets match the current filter.</span>
-          <span style={{ fontSize: 11 }}>Try clearing or modifying the filter expression.</span>
+          <strong style={{ color: 'var(--nv-text-primary)', fontSize: 15, fontWeight: 600 }}>
+            No packets match "{filterExpression}"
+          </strong>
+          <span>Clear the filter to see all packets</span>
         </div>
       </div>
     )
   }
 
-  // ── Virtualized list ──────────────────────────────────────────────────────
-
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden'
-      }}
-    >
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PacketListHeader />
-
-      {/* Scrollable viewport */}
       <div
         ref={parentRef}
         role="listbox"
         aria-label="Packet list"
-        aria-activedescendant={
-          selectedPacketId ? `packet-option-${selectedPacketId}` : undefined
-        }
+        aria-activedescendant={selectedPacketId ? `packet-option-${selectedPacketId}` : undefined}
         tabIndex={0}
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          outline: 'none'
-        }}
-        onKeyDown={(e) => {
-          // Handle keyboard nav when the grid container itself is focused
+        style={{ flex: 1, overflow: 'auto', outline: 'none' }}
+        onKeyDown={(event) => {
           const selectedIndex = selectedPacketId
-            ? filteredPackets.findIndex((p) => p.id === selectedPacketId)
+            ? displayPackets.findIndex((packet) => packet.id === selectedPacketId)
             : -1
-          if (selectedIndex >= 0) {
-            handleKeyDown(e, selectedIndex)
-          } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && filteredPackets.length > 0) {
-            e.preventDefault()
-            const first = filteredPackets[0]
-            if (first) selectPacket(first.id)
-          }
+          if (selectedIndex >= 0) handleKeyDown(event, selectedIndex)
         }}
       >
-        {/* Total height spacer */}
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((virtualRow) => {
-            const packet = filteredPackets[virtualRow.index]
+            const packet = displayPackets[virtualRow.index]
             if (!packet) return null
             return (
               <div
@@ -424,10 +387,12 @@ export function PacketList(): React.JSX.Element {
               >
                 <PacketRow
                   packet={packet}
-                  isSelected={packet.id === selectedPacketId}
-                  isNew={newIdsRef.current.has(packet.id)}
                   index={virtualRow.index}
-                  totalPackets={filteredPackets.length}
+                  startMs={startMs}
+                  isSelected={packet.id === selectedPacketId}
+                  isDimmed={filterActive && !filteredIds.has(packet.id)}
+                  isNew={newIdsRef.current.has(packet.id)}
+                  totalPackets={displayPackets.length}
                   onSelect={selectPacket}
                   onKeyDown={handleKeyDown}
                 />

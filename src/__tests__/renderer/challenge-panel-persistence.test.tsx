@@ -18,7 +18,6 @@ import {
   renderWithStore,
   resetStore,
   useNetVisStore,
-  waitFor
 } from './test-utils'
 
 function activateFilterByPortChallenge(): void {
@@ -60,11 +59,9 @@ describe('ChallengePanel persistence', () => {
       await vi.advanceTimersByTimeAsync(500)
     })
 
-    await waitFor(() =>
-      expect(api.setSettings).toHaveBeenCalledWith({
-        completedChallenges: ['filter-by-port']
-      })
-    )
+    expect(api.setSettings).toHaveBeenCalledWith({
+      completedChallenges: ['filter-by-port']
+    })
 
     expect(useNetVisStore.getState().completedChallengeIds).toEqual(['filter-by-port'])
     expect(useNetVisStore.getState().activeChallengeId).toBeNull()
@@ -84,7 +81,7 @@ describe('ChallengePanel persistence', () => {
       await vi.advanceTimersByTimeAsync(500)
     })
 
-    await waitFor(() => expect(api.setSettings).toHaveBeenCalledTimes(1))
+    expect(api.setSettings).toHaveBeenCalledTimes(1)
 
     expect(useNetVisStore.getState().completedChallengeIds).toEqual([])
     expect(useNetVisStore.getState().activeChallengeId).toBe('filter-by-port')

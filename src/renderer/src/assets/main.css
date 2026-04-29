@@ -84,8 +84,35 @@ body {
   border-color: var(--nv-status-warning) !important;
 }
 
-/* Focus ring utility class */
-.nv-focus:focus-visible {
-  outline: 2px solid var(--proto-tcp);
-  outline-offset: 2px;
+/* Focus ring utility class — canonical definition is in theme.css (.nv-focus:focus-visible) */
+/* Duplicate removed to avoid conflict with theme.css box-shadow definition */
+
+/* ─── Custom scrollbar ─────────────────────────────────────────────────────── */
+/* Webkit (Chrome, Edge, Electron) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--nv-border-default);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--nv-border-emphasis);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--nv-border-default) transparent;
 }

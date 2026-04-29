@@ -17,7 +17,14 @@ import { afterEach, vi } from 'vitest'
 import type { RenderResult } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { useNetVisStore } from '../../renderer/src/store'
-import type { AnonPacket, BufferStats, CaptureStatus, NetworkInterface, SpeedMultiplier } from '../../shared/capture-types'
+import type {
+  AnonPacket,
+  BufferStats,
+  CaptureStatus,
+  NetworkInterface,
+  SpeedMultiplier,
+  Theme
+} from '../../shared/capture-types'
 
 // ─── Auto-cleanup after each test ────────────────────────────────────────────
 
@@ -38,12 +45,15 @@ const STORE_INITIAL_STATE = {
   filterExpression: '',
   filterError: null as string | null,
   filteredPackets: [] as AnonPacket[],
-  theme: 'system' as 'light' | 'dark' | 'system',
+  activePage: 'capture' as const,
+  previousPage: null as 'capture' | 'learn' | 'challenges' | 'settings' | null,
+  theme: 'system' as Theme,
   focusVisualization: false,
   welcomeSeen: false,
   importResult: null as { packetCount: number; fileSizeBytes: number } | null,
   activeChallengeId: null as string | null,
-  completedChallengeIds: [] as string[]
+  completedChallengeIds: [] as string[],
+  challengeCompletion: null as { challengeId: string; packetId: string | null } | null
 }
 
 /**
@@ -60,7 +70,9 @@ export function resetStore(): void {
  * Render a React element with userEvent setup.
  * Wraps @testing-library/react render — extend with providers here as needed.
  */
-export function renderWithStore(ui: ReactElement): RenderResult & { user: ReturnType<typeof userEvent.setup> } {
+export function renderWithStore(
+  ui: ReactElement
+): RenderResult & { user: ReturnType<typeof userEvent.setup> } {
   return {
     ...render(ui),
     user: userEvent.setup()
@@ -141,11 +153,11 @@ export function mockElectronAPI(overrides: Partial<MockElectronAPI> = {}): MockE
     ...overrides
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(globalThis as any).window = {
-    ...(typeof window !== 'undefined' ? window : {}),
-    electronAPI: api
-  }
+  Object.defineProperty(window, 'electronAPI', {
+    configurable: true,
+    writable: true,
+    value: api
+  })
 
   return api
 }
@@ -182,4 +194,4 @@ export { render, cleanup } from '@testing-library/react'
 export { userEvent } from '@testing-library/user-event'
 export { screen, within, fireEvent, waitFor, act } from '@testing-library/react'
 export { useNetVisStore }
-export type { AnonPacket, BufferStats, CaptureStatus, NetworkInterface, SpeedMultiplier }
+export type { AnonPacket, BufferStats, CaptureStatus, NetworkInterface, SpeedMultiplier, Theme }

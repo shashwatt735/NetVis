@@ -332,4 +332,54 @@ describe('Anonymizer — anonymization invariant (P6)', () => {
       { numRuns: 25 }
     )
   })
+
+  it('IP and MAC address fields are replaced with readable session pseudonyms', () => {
+    const raw = makeRawPacket(
+      Buffer.concat([
+        ethernetHeader(ETHERTYPE_IPV4),
+        ipv4Header(IP_PROTO_TCP, [10, 0, 0, 1], [192, 168, 1, 20]),
+        tcpHeader(443, 52000, Buffer.from('secret payload'))
+      ])
+    )
+
+    const parsed = Parser.parse(raw)
+    const anon = Anonymizer.anonymize(parsed)
+    const ipv4 = anon.layers.find((layer) => layer.protocol === 'IPv4')
+    const ethernet = anon.layers[0]
+
+    expect(anon.srcAddress).toMatch(/^ip-[0-9a-f]{8}$/)
+    expect(anon.dstAddress).toMatch(/^ip-[0-9a-f]{8}$/)
+    expect(anon.srcAddress).not.toBe('10.0.0.1')
+    expect(anon.dstAddress).not.toBe('192.168.1.20')
+    expect(ipv4?.fields.find((field) => field.name === 'src')?.value).toBe(anon.srcAddress)
+    expect(ipv4?.fields.find((field) => field.name === 'dst')?.value).toBe(anon.dstAddress)
+    expect(ethernet?.fields.find((field) => field.name === 'src')?.value).toMatch(
+      /^mac-[0-9a-f]{8}$/
+    )
+    expect(ethernet?.fields.find((field) => field.name === 'dst')?.value).toMatch(
+      /^mac-[0-9a-f]{8}$/
+    )
+  })
+
+  it('sanitizeForExport removes original address and payload bytes from rawData', () => {
+    const payload = Buffer.from('secret payload')
+    const raw = makeRawPacket(
+      Buffer.concat([
+        ethernetHeader(ETHERTYPE_IPV4),
+        ipv4Header(IP_PROTO_TCP, [10, 0, 0, 1], [192, 168, 1, 20]),
+        tcpHeader(443, 52000, payload)
+      ])
+    )
+
+    const parsed = Parser.parse(raw)
+    const sanitized = Anonymizer.sanitizeForExport(parsed)
+    const sanitizedBytes = Buffer.from(sanitized.rawData!)
+
+    expect(sanitizedBytes.includes(Buffer.from([0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]))).toBe(false)
+    expect(sanitizedBytes.includes(Buffer.from([0x11, 0x22, 0x33, 0x44, 0x55, 0x66]))).toBe(false)
+    expect(sanitizedBytes.includes(Buffer.from([10, 0, 0, 1]))).toBe(false)
+    expect(sanitizedBytes.includes(Buffer.from([192, 168, 1, 20]))).toBe(false)
+    expect(sanitizedBytes.includes(payload)).toBe(false)
+    expect(sanitizedBytes.length).toBe(parsed.rawData!.length)
+  })
 })

@@ -1,29 +1,34 @@
 import type React from 'react'
-import { MainLayout } from './MainLayout'
-import { PacketDetailInspector } from './PacketDetailInspector'
-import { PacketList } from './PacketList'
-import { PacketFlowTimeline } from './PacketFlowTimeline'
-import { ProtocolChart } from './ProtocolChart'
-import { OSILayerDiagram } from './OSILayerDiagram'
-import { ProtocolAnimations } from './ProtocolAnimations'
-import { IPFlowMap } from './IPFlowMap'
-import { BandwidthChart } from './BandwidthChart'
+import { CapturePage } from './CapturePage'
+import { ChallengesPage } from './ChallengesPage'
+import { LearnPage } from './LearnPage'
+import { SettingsPage } from './SettingsPage'
+import { SidebarNav } from './SidebarNav'
 import { StatusBar } from './StatusBar'
 import { Toolbar } from './Toolbar'
-import { VisualizationPane } from './VisualizationPane'
+import { OnboardingHints } from './OnboardingHints'
+import { useNetVisStore } from '../store'
 
-interface AppShellProps {
-  /** Slot for the packet list / detail pane content */
-  detailPane?: React.ReactNode
-  /** Slot for visualization components (charts, timeline, etc.) */
-  visualizations?: React.ReactNode
+function ActivePage(): React.JSX.Element {
+  const activePage = useNetVisStore((s) => s.activePage)
+
+  switch (activePage) {
+    case 'learn':
+      return <LearnPage />
+    case 'challenges':
+      return <ChallengesPage />
+    case 'settings':
+      return <SettingsPage />
+    case 'capture':
+    default:
+      return <CapturePage />
+  }
 }
 
 /**
- * Root application shell: Toolbar → MainLayout (VisualizationPane + DetailPane) → StatusBar.
- * Req 24.1, 24.2, 24.6
+ * Root application shell: page toolbar, persistent sidebar, workspace, status bar.
  */
-export function AppShell({ detailPane, visualizations }: AppShellProps): React.JSX.Element {
+export function AppShell(): React.JSX.Element {
   return (
     <div
       style={{
@@ -38,7 +43,7 @@ export function AppShell({ detailPane, visualizations }: AppShellProps): React.J
     >
       <Toolbar />
 
-      <main
+      <div
         style={{
           flex: 1,
           display: 'flex',
@@ -46,35 +51,23 @@ export function AppShell({ detailPane, visualizations }: AppShellProps): React.J
           minHeight: 0
         }}
       >
-        <MainLayout
-          visualizationPane={
-            <VisualizationPane>
-              {visualizations ?? (
-                <>
-                  <ProtocolChart />
-                  <PacketFlowTimeline />
-                  <BandwidthChart />
-                  <IPFlowMap />
-                  <OSILayerDiagram />
-                  <ProtocolAnimations />
-                </>
-              )}
-            </VisualizationPane>
-          }
-          detailPane={
-            detailPane ?? (
-              <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                  <PacketList />
-                </div>
-                <PacketDetailInspector />
-              </div>
-            )
-          }
-        />
-      </main>
+        <SidebarNav />
+        <main
+          aria-label="Page workspace"
+          style={{
+            flex: 1,
+            display: 'flex',
+            minWidth: 0,
+            minHeight: 0,
+            overflow: 'hidden'
+          }}
+        >
+          <ActivePage />
+        </main>
+      </div>
 
       <StatusBar />
+      <OnboardingHints />
     </div>
   )
 }

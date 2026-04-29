@@ -1,7 +1,7 @@
 # NetVis Architecture Documentation
 
-**Version:** 1.4  
-**Last Modified:** 2026-04-22
+**Version:** 1.5  
+**Last Modified:** 2026-04-27
 
 ---
 
@@ -97,6 +97,28 @@ Renderer: receives AnonPacket only
 ```
 
 **Rationale:** Maintains the security boundary. The privileged domain retains the canonical packet form (`ParsedPacket`). Anonymization happens at the IPC send boundary, not at storage time.
+
+### ARCH-10: Authoritative Packet Push Channel
+
+Renderer-visible packet delivery uses `packet:batch` as the sole authoritative push channel. No other subsystem emits packets to the renderer.
+
+### ARCH-11: Separate Capture Modes
+
+Live capture, file import, and simulated replay are separate user-initiated modes with no silent fallback between them.
+
+### ARCH-12: File Path Validation
+
+All file paths and targets are validated before any PCAP operation (FILE-SEC-01).
+
+### ARCH-13: Platform-Specific Privilege Minimization
+
+- **Linux:** `setcap cap_net_raw,cap_net_admin=eip` on the binary
+- **Windows:** Npcap Users group membership (or run as Administrator)
+- **macOS:** `sudo` or Full Disk Access via System Preferences
+
+### ARCH-14: Thread Ownership
+
+Worker thread owns file/simulated replay acquisition and parsing. Main thread owns live capture (`CapSource`), privileged operations, and IPC delivery. Renderer owns UI only.
 
 ---
 
@@ -258,15 +280,17 @@ packet === packet' (field values identical)
 
 ```
 SESSION_KEY = randomBytes(32)  // generated once at startup
-pseudonym(data) = sha256(SESSION_KEY || data).slice(0, 8)
+pseudonym(data) = HMAC-SHA256(SESSION_KEY, namespace || data).slice(0, 8)
 ```
 
 **Rules:**
 
 - Session key never exported, logged, or written to disk
-- Transport-layer payload → pseudonym
-- DNS: query name and type preserved; answer records not parsed in stabilization scope
-- All protocol headers preserved unchanged (metadata, not payload)
+- Transport-layer payload -> pseudonym
+- Renderer-visible IP/MAC addresses -> deterministic session pseudonyms
+- Exported PCAP bytes replace IP/MAC fields and payload bytes with same-length HMAC-derived bytes
+- DNS: query name and type preserved in the renderer; answer address fields are anonymized
+- Non-address protocol headers preserved unchanged
 
 **Security:**
 
@@ -337,7 +361,7 @@ process.on('uncaughtException', (err) => {
 ```typescript
 {
   bufferCapacity: number      // 1000-100000, default 10000
-  theme: 'light' | 'dark' | 'system'  // default 'system'
+  theme: 'light' | 'dark' | 'warm-dark' | 'system'  // default 'system'
   welcomeSeen: boolean        // default false
   completedChallenges: string[]  // default []
   reducedMotion: boolean      // default false
@@ -350,6 +374,30 @@ process.on('uncaughtException', (err) => {
 - Written on every mutation
 - Emits `'change'` event for IPC synchronization
 - Handles missing/corrupt files gracefully (resets to defaults)
+
+### Filter_Engine
+
+**Purpose:** Parse and evaluate filter expressions against the packet buffer.
+
+**Components:**
+
+- **lexer.ts:** Single-pass tokenizer
+- **parser.ts:** Recursive-descent parser producing a `FilterAST`
+- **evaluator.ts:** Read-only evaluation of `FilterAST` against `AnonPacket[]`
+- **index.ts:** Public `parse()` and `evaluate()` exports
+
+**Supported fields:** `proto`, `src`, `dst`, `port`, `len`, `ts`  
+**Comparators:** `==`, `!=`, `>`, `<`, `>=`, `<=`  
+**Operators:** `AND`, `OR`, `NOT`
+
+**Evaluation is read-only** — the evaluator never mutates packets or buffer state.
+
+### BufferStatsThrottler
+
+**Purpose:** Throttle `buffer:stats` push-channel emissions to ≤500ms intervals.
+
+- Prevents excessive IPC traffic during high packet rates
+- Cleaned up on `before-quit` to avoid dangling timers
 
 ---
 
@@ -495,14 +543,16 @@ process.on('uncaughtException', (err) => {
 - Packet_Buffer
 - Anonymizer
 - IpcBatcher
+- BufferStatsThrottler
 - **CapSource (live capture)** — moved here from worker thread for Npcap/Windows native thread safety
+- **Parser (live capture path)** — called on main thread when CapSource delivers a RawPacket
 
 ### Worker Thread
 
 - PcapFileSource (file import)
 - SimulatedReplaySource (simulated replay)
 - CaptureController (file/simulated state machine)
-- Parser
+- Parser (file/simulated path — called inside the worker for file and simulated sources)
 
 **Rationale for CapSource on main thread:**
 
@@ -694,12 +744,14 @@ NetVis prevents high packet rates from turning into renderer lag by decoupling p
 
 ## Future Considerations
 
-### Phase 2 Components
+### Phase 2 Components (Implemented)
 
-- **OSI_Layer_Diagram:** Maps packet layers to OSI model
-- **IP_Flow_Map:** D3-based node-link diagram of IP communication
-- **Bandwidth_Chart:** Stacked area chart of traffic volume over time
-- **Protocol_Animations:** Step-by-step animated protocol exchanges
+All Phase 2 visualization components are complete:
+
+- **OSI_Layer_Diagram:** 7-layer OSI stack with active-layer highlighting and keyboard navigation
+- **IP_Flow_Map:** D3 force-simulation node-link diagram; node/edge click generates filter expression
+- **Bandwidth_Chart:** Recharts stacked area chart, 60-second window, protocol-colored stacks
+- **Protocol_Animations:** TCP handshake, DNS query/response, ICMP echo; play/pause/step controls
 
 ### Scalability
 
@@ -725,6 +777,6 @@ NetVis prevents high packet rates from turning into renderer lag by decoupling p
 
 ---
 
-**Document Version:** 1.3  
-**Last Updated:** 2026-04-17  
+**Document Version:** 1.5  
+**Last Updated:** 2026-04-27  
 **Maintained By:** NetVis Development Team

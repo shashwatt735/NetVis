@@ -60,13 +60,13 @@ function Slider({
             backgroundColor: 'var(--nv-bg-surface-1)'
           }}
           onFocus={(e) => {
-            e.currentTarget.style.boxShadow = '0 0 0 4px rgba(59, 130, 246, 0.5)'
+            e.currentTarget.style.boxShadow = '0 0 0 4px rgba(78, 156, 232, 0.5)'
           }}
           onBlur={(e) => {
             e.currentTarget.style.boxShadow = 'var(--nv-shadow-sm)'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow = '0 0 0 4px rgba(59, 130, 246, 0.5)'
+            e.currentTarget.style.boxShadow = '0 0 0 4px rgba(78, 156, 232, 0.5)'
           }}
           onMouseLeave={(e) => {
             if (document.activeElement !== e.currentTarget) {

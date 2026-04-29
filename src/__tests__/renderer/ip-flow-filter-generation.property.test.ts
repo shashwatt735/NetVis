@@ -22,7 +22,7 @@
 
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
-import { buildNodeFilter, buildEdgeFilter } from '../../renderer/src/components/IPFlowMap'
+import { buildNodeFilter, buildEdgeFilter } from '../../renderer/src/components/ip-flow-utils'
 
 // ─── Arbitraries ─────────────────────────────────────────────────────────────
 
@@ -36,9 +36,7 @@ const ipv4Arb = fc
   .map(([a, b, c, d]) => `${a}.${b}.${c}.${d}`)
 
 // Two distinct IPs
-const twoDistinctIPsArb = fc
-  .tuple(ipv4Arb, ipv4Arb)
-  .filter(([a, b]) => a !== b)
+const twoDistinctIPsArb = fc.tuple(ipv4Arb, ipv4Arb).filter(([a, b]) => a !== b)
 
 // ─── Simple filter evaluator (subset of Filter_Grammar for IP matching) ───────
 
@@ -62,7 +60,8 @@ function evaluateIPFilter(expression: string, packet: MinimalPacket): boolean {
   }
 
   // Pattern: `(src == "A" AND dst == "B") OR (src == "B" AND dst == "A")`
-  const edgePattern = /^\(src == "([^"]+)" AND dst == "([^"]+)"\) OR \(src == "([^"]+)" AND dst == "([^"]+)"\)$/
+  const edgePattern =
+    /^\(src == "([^"]+)" AND dst == "([^"]+)"\) OR \(src == "([^"]+)" AND dst == "([^"]+)"\)$/
   const edgeMatch = expression.match(edgePattern)
   if (edgeMatch) {
     const [, srcA, dstB, srcB, dstA] = edgeMatch
@@ -106,13 +105,15 @@ describe('IP flow filter generation (P22)', () => {
    */
   it('node filter does not match packets where neither address equals the IP', () => {
     fc.assert(
-      fc.property(twoDistinctIPsArb, ipv4Arb, ([[ip, unrelatedIp], thirdIp]) => {
+      fc.property(twoDistinctIPsArb, ipv4Arb, ([ip, unrelatedIp], thirdIp) => {
         // Ensure thirdIp is different from ip
-        if (thirdIp === ip) return
+        fc.pre(thirdIp !== ip)
 
         const filter = buildNodeFilter(ip)
         // Packet between two unrelated IPs
-        expect(evaluateIPFilter(filter, { srcAddress: unrelatedIp, dstAddress: thirdIp })).toBe(false)
+        expect(evaluateIPFilter(filter, { srcAddress: unrelatedIp, dstAddress: thirdIp })).toBe(
+          false
+        )
       }),
       { numRuns: 100 }
     )
@@ -143,26 +144,23 @@ describe('IP flow filter generation (P22)', () => {
    */
   it('edge filter does not match packets involving unrelated IPs', () => {
     fc.assert(
-      fc.property(
-        twoDistinctIPsArb,
-        ipv4Arb,
-        ipv4Arb,
-        ([[ipA, ipB], unrelatedC, unrelatedD]) => {
-          if (unrelatedC === ipA || unrelatedC === ipB) return
-          if (unrelatedD === ipA || unrelatedD === ipB) return
+      fc.property(twoDistinctIPsArb, ipv4Arb, ipv4Arb, ([ipA, ipB], unrelatedC, unrelatedD) => {
+        fc.pre(unrelatedC !== ipA && unrelatedC !== ipB)
+        fc.pre(unrelatedD !== ipA && unrelatedD !== ipB)
 
-          const filter = buildEdgeFilter(ipA, ipB)
+        const filter = buildEdgeFilter(ipA, ipB)
 
-          // Packet between two unrelated IPs
-          expect(evaluateIPFilter(filter, { srcAddress: unrelatedC, dstAddress: unrelatedD })).toBe(false)
+        // Packet between two unrelated IPs
+        expect(evaluateIPFilter(filter, { srcAddress: unrelatedC, dstAddress: unrelatedD })).toBe(
+          false
+        )
 
-          // Packet from A to unrelated
-          expect(evaluateIPFilter(filter, { srcAddress: ipA, dstAddress: unrelatedC })).toBe(false)
+        // Packet from A to unrelated
+        expect(evaluateIPFilter(filter, { srcAddress: ipA, dstAddress: unrelatedC })).toBe(false)
 
-          // Packet from unrelated to B
-          expect(evaluateIPFilter(filter, { srcAddress: unrelatedC, dstAddress: ipB })).toBe(false)
-        }
-      ),
+        // Packet from unrelated to B
+        expect(evaluateIPFilter(filter, { srcAddress: unrelatedC, dstAddress: ipB })).toBe(false)
+      }),
       { numRuns: 100 }
     )
   })
@@ -220,7 +218,7 @@ describe('IP flow filter generation (P22)', () => {
    */
   it('edge filter is symmetric: buildEdgeFilter(A, B) matches same packets as buildEdgeFilter(B, A)', () => {
     fc.assert(
-      fc.property(twoDistinctIPsArb, ipv4Arb, ipv4Arb, ([[ipA, ipB], srcIp, dstIp]) => {
+      fc.property(twoDistinctIPsArb, ipv4Arb, ipv4Arb, ([ipA, ipB], srcIp, dstIp) => {
         const filterAB = buildEdgeFilter(ipA, ipB)
         const filterBA = buildEdgeFilter(ipB, ipA)
 

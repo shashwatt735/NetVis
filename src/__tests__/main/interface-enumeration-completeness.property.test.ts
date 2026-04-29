@@ -11,9 +11,8 @@
  *
  * This property test verifies these invariants hold across multiple invocations.
  *
- * NOTE: This test uses the cap library directly to test interface enumeration
- * properties without requiring a fully initialized worker thread, which is not
- * available in the test environment.
+ * NOTE: This test uses a deterministic interface provider so unit validation
+ * never enumerates host adapters or depends on local packet-capture hardware.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -21,36 +20,24 @@ import * as fc from 'fast-check'
 import type { NetworkInterface } from '../../shared/capture-types'
 import type { InterfaceResult } from '../../shared/ipc-types'
 
-// Import cap library directly for testing
-let Cap: any
-try {
-  Cap = require('cap').Cap
-} catch {
-  // cap may not be available on all platforms
-  Cap = null
-}
+const MOCK_DEVICES = [
+  { name: 'eth1', description: 'Wireless Adapter', flags: ['UP'] },
+  { name: 'eth0', description: 'Ethernet Adapter', flags: ['UP'] },
+  { name: 'lo', description: 'Loopback Adapter', flags: [] }
+]
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
 /**
- * Enumerate interfaces using the cap library directly.
- * This mirrors the logic in capture-worker.ts without requiring a worker thread.
+ * Enumerate interfaces from a deterministic provider.
+ * This mirrors capture-worker.ts mapping without touching the real machine.
  */
 function enumerateInterfaces(): InterfaceResult {
-  if (!Cap) {
-    return {
-      ok: false,
-      error: 'Capture library not available',
-      platformHint: 'Install Npcap (Windows) or ensure libpcap is available (Linux/macOS)'
-    }
-  }
-
   try {
-    const deviceList = Cap.deviceList()
-    const interfaces: NetworkInterface[] = deviceList.map((dev: any) => ({
+    const interfaces: NetworkInterface[] = MOCK_DEVICES.map((dev) => ({
       name: dev.name,
       displayName: dev.description || dev.name,
-      isUp: !!(dev.flags && dev.flags.includes('UP'))
+      isUp: dev.flags.includes('UP')
     }))
 
     // Sort alphabetically by displayName (Req 1.4)

@@ -12,7 +12,7 @@ import {
 import { useNetVisStore } from '../store'
 import { PROTOCOL_COLORS, protocolColorKey } from '../constants/protocol-colors'
 import { PhasePlaceholder } from './PhasePlaceholder'
-import { buildBandwidthBuckets, BANDWIDTH_PROTOCOLS, type BandwidthBucket } from './bandwidth-utils'
+import { buildBandwidthBuckets, BANDWIDTH_PROTOCOLS } from './bandwidth-utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ function BandwidthChartInner(): React.JSX.Element {
 
     // Click on a chart region → time-range filter (Req 28.3)
     const handleClick = useCallback(
-        (data: { activePayload?: Array<{ payload: BandwidthBucket }> }) => {
+        (data: any) => {
             const bucket = data?.activePayload?.[0]?.payload
             if (!bucket) return
             const start = bucket.time
@@ -166,8 +166,8 @@ function BandwidthChartInner(): React.JSX.Element {
                             width={48}
                         />
                         <Tooltip
-                            formatter={(value: number, name: string) => [formatBytes(value), name]}
-                            labelFormatter={(label: string) => `Time: ${label}`}
+                            formatter={(value: any, name: any) => value !== undefined ? [formatBytes(Number(value)), name || ''] : [name || '']}
+                            labelFormatter={(label: any) => label !== undefined ? `Time: ${label}` : ''}
                             contentStyle={{
                                 backgroundColor: 'var(--nv-bg-surface-2)',
                                 border: '1px solid var(--nv-border-default)',
@@ -256,13 +256,17 @@ function BandwidthChartInner(): React.JSX.Element {
                         <tbody>
                             {buckets
                                 .filter((b) => activeProtocols.some((p) => (b[p] as number) > 0))
-                                .map((b) => (
-                                    <tr key={b.time}>
+                                .map((b, index, arr) => (
+                                    <tr
+                                        key={b.time}
+                                        style={{
+                                            borderBottom: index < arr.length - 1 ? '1px solid var(--nv-border-subtle)' : 'none'
+                                        }}
+                                    >
                                         <td
                                             style={{
                                                 padding: '2px 6px',
-                                                color: 'var(--nv-text-secondary)',
-                                                borderBottom: '1px solid var(--nv-border-subtle)'
+                                                color: 'var(--nv-text-secondary)'
                                             }}
                                         >
                                             {b.label}
@@ -273,8 +277,7 @@ function BandwidthChartInner(): React.JSX.Element {
                                                 style={{
                                                     textAlign: 'right',
                                                     padding: '2px 6px',
-                                                    color: 'var(--nv-text-secondary)',
-                                                    borderBottom: '1px solid var(--nv-border-subtle)'
+                                                    color: 'var(--nv-text-secondary)'
                                                 }}
                                             >
                                                 {(b[p] as number) > 0 ? formatBytes(b[p] as number) : '—'}
