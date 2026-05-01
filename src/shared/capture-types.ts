@@ -87,6 +87,14 @@ export interface NetworkInterface {
   name: string
   displayName: string
   isUp: boolean
+  kind?: 'ethernet' | 'wifi' | 'vpn' | 'virtual' | 'loopback' | 'bluetooth' | 'interface'
+  semanticLabel?: string
+  isDefaultRoute?: boolean
+  hasAddress?: boolean
+  isCaptureCapable?: boolean
+  isRecommended?: boolean
+  recommendationScore?: number
+  recommendationReason?: string
 }
 
 // ─── Capture status ───────────────────────────────────────────────────────────
@@ -164,6 +172,8 @@ export interface Settings {
   welcomeSeen: boolean
   completedChallenges: string[]
   reducedMotion: boolean // mirrors OS preference; user can override
+  preferredInterfaceName: string | null
+  autoSelectInterface: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -171,7 +181,9 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   welcomeSeen: false,
   completedChallenges: [],
-  reducedMotion: false
+  reducedMotion: false,
+  preferredInterfaceName: null,
+  autoSelectInterface: true
 }
 
 // ─── Worker message protocol ──────────────────────────────────────────────────

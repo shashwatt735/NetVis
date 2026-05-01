@@ -42,6 +42,8 @@ const STORE_INITIAL_STATE = {
   captureStatus: { state: 'idle' } as CaptureStatus,
   interfaces: [] as NetworkInterface[],
   activeInterface: null as string | null,
+  preferredInterfaceName: null as string | null,
+  autoSelectInterface: true,
   interfaceDetectionStatus: 'idle' as const,
   filterExpression: '',
   filterError: null as string | null,
@@ -123,7 +125,9 @@ export function mockElectronAPI(overrides: Partial<MockElectronAPI> = {}): MockE
     theme: 'system' as const,
     welcomeSeen: false,
     completedChallenges: [] as string[],
-    reducedMotion: false
+    reducedMotion: false,
+    preferredInterfaceName: null as string | null,
+    autoSelectInterface: true
   }
 
   const api: MockElectronAPI = {

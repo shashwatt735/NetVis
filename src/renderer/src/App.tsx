@@ -14,7 +14,9 @@ function App(): React.JSX.Element {
     notifyBufferOverflow,
     setTheme,
     setWelcomeSeen,
-    setCompletedChallenges
+    setCompletedChallenges,
+    setPreferredInterfaceName,
+    setAutoSelectInterface
   } = useNetVisStore()
 
   // Loading state for splash screen
@@ -38,6 +40,8 @@ function App(): React.JSX.Element {
         setTheme(settings.theme)
         setWelcomeSeen(settings.welcomeSeen)
         setCompletedChallenges(settings.completedChallenges)
+        setPreferredInterfaceName(settings.preferredInterfaceName)
+        setAutoSelectInterface(settings.autoSelectInterface)
 
         // Note: Interface enumeration is owned by InterfaceSelector component (ARCH-07)
         // to avoid duplicate getInterfaces() calls and lifecycle drift
@@ -99,7 +103,9 @@ function App(): React.JSX.Element {
     notifyBufferOverflow,
     setTheme,
     setWelcomeSeen,
-    setCompletedChallenges
+    setCompletedChallenges,
+    setPreferredInterfaceName,
+    setAutoSelectInterface
   ])
 
   return (

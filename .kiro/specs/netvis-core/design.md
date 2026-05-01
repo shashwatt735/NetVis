@@ -25,11 +25,9 @@ The application is structured around a strict security boundary: **live capture 
 graph TD
   subgraph Worker Thread
     CC[CaptureController]
-    CS[CapSource]
     FS[PcapFileSource]
     RS[SimulatedReplaySource]
     PA[Parser]
-    CS --> CC
     FS --> CC
     RS --> CC
     CC -->|RawPacket| PA
@@ -37,6 +35,7 @@ graph TD
 
   subgraph Main Process
     CE[Capture_Engine]
+    CS[CapSource]
     WS[WorkerSupervisor]
     FE[Filter_Engine]
     AN[Anonymizer]
@@ -44,6 +43,7 @@ graph TD
     IB[IpcBatcher]
     LG[Logger]
     ST[Settings_Store]
+    CS -->|RawPacket| CE
     CE --> WS
     PA -->|ParsedPacket| PB
     PB -->|ParsedPacket| AN
@@ -749,6 +749,20 @@ type InterfaceResult =
   | { ok: true; interfaces: NetworkInterface[] }
   | { ok: false; error: string; platformHint?: string }
 
+interface NetworkInterface {
+  name: string
+  displayName: string
+  isUp: boolean
+  kind?: 'ethernet' | 'wifi' | 'vpn' | 'virtual' | 'loopback' | 'bluetooth' | 'interface'
+  semanticLabel?: string
+  isDefaultRoute?: boolean
+  hasAddress?: boolean
+  isCaptureCapable?: boolean
+  isRecommended?: boolean
+  recommendationScore?: number
+  recommendationReason?: string
+}
+
 interface CaptureEngine {
   getInterfaces(): Promise<InterfaceResult>
   startCapture(iface: string): Promise<void>
@@ -759,6 +773,15 @@ interface CaptureEngine {
   on(event: 'stopped', handler: () => void): void
 }
 ```
+
+
+##### Interface Detection and Recommendation
+
+Interface detection is local-only and privacy-safe. `CaptureEngine.getInterfaces()` starts from `Cap.deviceList()` so the app only recommends capture-capable devices. On Windows, the main process may enrich those devices with `Get-NetAdapter`, `Get-NetIPInterface`, `Get-NetRoute`, and `Get-NetIPAddress` metadata to determine adapter status, address presence, and default-route status.
+
+The app classifies interfaces as `ethernet`, `wifi`, `vpn`, `virtual`, `loopback`, `bluetooth`, or generic `interface`. The recommendation scorer prefers active physical Ethernet/Wi-Fi adapters, uses default-route status as a positive signal, and penalizes VPN/TAP/TUN, virtual/container, loopback, and Bluetooth adapters. VPN adapters remain selectable, but they are labeled as specialized because they may hide local Ethernet behavior or fail to expose useful beginner capture traffic.
+
+Normal UI must not show raw local IP addresses, MAC addresses, gateway addresses, or raw adapter GUIDs. It should show a semantic label plus recognizable adapter name, for example `Ethernet - Realtek PCIe GbE Family Controller`, with badges such as `Recommended`, `Primary route`, `Specialized`, and `Local address hidden`.
 
 
 #### Parser
@@ -815,10 +838,12 @@ Persists user-configurable settings to `app.getPath('userData')/settings.json`. 
 ```typescript
 interface Settings {
   bufferCapacity: number // 1000–100000, default 10000
-  theme: 'light' | 'dark' | 'system'
+  theme: 'light' | 'dark' | 'warm-dark' | 'system'
   welcomeSeen: boolean
   completedChallenges: string[]
   reducedMotion: boolean // mirrors OS preference; user can override
+  preferredInterfaceName: string | null
+  autoSelectInterface: boolean
 }
 
 interface SettingsStore {
@@ -829,6 +854,12 @@ interface SettingsStore {
 ```
 
 IPC channels added: `settings:get` (invoke) and `settings:set` (invoke). See Channel Inventory below.
+
+Interface preference semantics:
+
+- `autoSelectInterface: true` means the renderer should use the scored recommended interface when no active user override is in force.
+- `autoSelectInterface: false` means the renderer should prefer `preferredInterfaceName` when that capture device is still available.
+- Capture stop/error must not clear the selected interface; selected, preferred, and active-capture interface meanings are separate.
 
 ---
 
@@ -845,7 +876,7 @@ Each renderer-visible push channel has exactly one authoritative emitter in the 
 | Direction       | Channel                  | Payload                                    | Description                                             |
 | --------------- | ------------------------ | ------------------------------------------ | ------------------------------------------------------- |
 | Renderer → Main | `capture:getInterfaces`  | —                                          | Returns `InterfaceResult`: `{ ok: true; interfaces: NetworkInterface[] }` or `{ ok: false; error: string; platformHint?: string }` |
-| Renderer → Main | `capture:start`          | `{ iface: string }`                        | Start live capture                                      |
+| Renderer → Main | `capture:start`          | `iface: string`                            | Start live capture                                      |
 | Renderer → Main | `capture:stop`           | —                                          | Stop capture                                            |
 | Renderer → Main | `capture:startSimulated` | `{ path: string; speed: SpeedMultiplier }` | Start simulated replay                                  |
 | Renderer → Main | `pcap:import`            | —                                          | Open file dialog, validate path, stream file through the shared privileged pipeline, and populate the buffer |
@@ -943,6 +974,8 @@ interface NetVisStore {
   captureStatus: CaptureStatus
   interfaces: NetworkInterface[]
   activeInterface: string | null
+  preferredInterfaceName: string | null
+  autoSelectInterface: boolean
 
   // Filter
   filterExpression: string
@@ -950,7 +983,7 @@ interface NetVisStore {
   filteredPackets: AnonPacket[] // explicit stored state; refreshed lazily when the filter expression changes, clears, or an explicit refresh is requested; packet arrival alone does not trigger full re-evaluation
 
   // UI
-  theme: 'light' | 'dark' | 'system'
+  theme: 'light' | 'dark' | 'warm-dark' | 'system'
   focusVisualization: boolean
   welcomeSeen: boolean
 
@@ -968,7 +1001,9 @@ interface NetVisStore {
   setCaptureStatus(s: CaptureStatus): void
   setInterfaces(ifaces: NetworkInterface[]): void
   setActiveInterface(iface: string | null): void
-  setTheme(t: 'light' | 'dark' | 'system'): void
+  setPreferredInterfaceName(iface: string | null): void
+  setAutoSelectInterface(enabled: boolean): void
+  setTheme(t: 'light' | 'dark' | 'warm-dark' | 'system'): void
   toggleFocusVisualization(): void
   activateChallenge(id: string): void
   completeChallenge(id: string): void
@@ -1204,6 +1239,13 @@ A collapsible slide-in panel (Radix UI `Sheet`, anchor `"right"`) opened by a ge
 
 All settings are persisted via `window.electronAPI.setSettings(patch)` on change. On panel open, the renderer calls `window.electronAPI.getSettings()` to populate current values.
 
+The full Settings page also exposes default capture interface controls:
+
+| Setting | Control | Validation |
+| --- | --- | --- |
+| Interface selection mode | Segmented buttons: Auto-detect / Always use selected | Boolean `autoSelectInterface` |
+| Default capture interface | `<Select>` with Auto plus enumerated interfaces | `preferredInterfaceName` is `null` or a non-empty capture device name |
+
 ---
 
 ## Filter Engine Design
@@ -1403,6 +1445,14 @@ interface NetworkInterface {
   name: string
   displayName: string
   isUp: boolean
+  kind?: 'ethernet' | 'wifi' | 'vpn' | 'virtual' | 'loopback' | 'bluetooth' | 'interface'
+  semanticLabel?: string
+  isDefaultRoute?: boolean
+  hasAddress?: boolean
+  isCaptureCapable?: boolean
+  isRecommended?: boolean
+  recommendationScore?: number
+  recommendationReason?: string
 }
 
 // Interface enumeration result

@@ -1,6 +1,6 @@
 # Project Structure
 
-**Last Modified:** 2026-04-22
+**Last Modified:** 2026-05-02
 
 ## Directory Organization
 
@@ -39,7 +39,7 @@ netvis/
 │   │   ├── packet-buffer/          # Packet_Buffer (stores ParsedPacket)
 │   │   ├── anonymizer/             # ParsedPacket -> AnonPacket at IPC boundary
 │   │   ├── logger/                 # Structured logging
-│   │   ├── settings-store/         # Persistent settings and challenge completion source of truth
+│   │   ├── settings-store/         # Persistent settings, interface preference, and challenge completion source of truth
 │   │   ├── filter-engine/          # Main-process filter parsing/evaluation
 │   │   ├── ipc-handlers.ts         # Typed IPC handlers
 │   │   ├── ipc-schemas.ts          # Zod schemas for IPC validation
@@ -60,6 +60,7 @@ netvis/
 │   │       └── store/
 │   ├── shared/
 │   │   ├── capture-types.ts
+│   │   ├── interface-classification.ts # Interface kind labels, scoring, and recommendation helpers
 │   │   └── ipc-types.ts
 │   └── __tests__/
 │       ├── main/
@@ -74,7 +75,7 @@ netvis/
 ### Process Isolation
 
 - **Worker Thread:** File and simulated replay sources, `CaptureController`, and `Parser` execute in the worker thread context (located in `src/main/capture/` and `src/main/parser/`): `PcapFileSource`, `SimulatedReplaySource`, `CaptureController`, `Parser`
-- **Main Process:** `CapSource` (live capture — on main thread for Npcap/Windows native thread safety), privileged orchestration, worker supervision, buffering, anonymization, logging, settings persistence, and IPC handling
+- **Main Process:** `CapSource` (live capture — on main thread for Npcap/Windows native thread safety), interface enrichment, privileged orchestration, worker supervision, buffering, anonymization, logging, settings persistence, and IPC handling
 - **Preload Script:** Security boundary via contextBridge
 - **Renderer Process:** React UI and educational visualization with no Node.js access
 

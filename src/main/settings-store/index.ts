@@ -18,6 +18,8 @@ export interface Settings {
   welcomeSeen: boolean // default false (Req 19.3)
   completedChallenges: string[] // default [] (Req 11.5)
   reducedMotion: boolean // default false, mirrors OS preference (Req 21.5)
+  preferredInterfaceName: string | null
+  autoSelectInterface: boolean
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -25,7 +27,9 @@ const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   welcomeSeen: false,
   completedChallenges: [],
-  reducedMotion: false
+  reducedMotion: false,
+  preferredInterfaceName: null,
+  autoSelectInterface: true
 }
 
 /**
@@ -65,7 +69,11 @@ export class SettingsStore extends EventEmitter {
         completedChallenges: Array.isArray(parsed.completedChallenges)
           ? parsed.completedChallenges.filter((x: unknown) => typeof x === 'string')
           : [],
-        reducedMotion: typeof parsed.reducedMotion === 'boolean' ? parsed.reducedMotion : false
+        reducedMotion: typeof parsed.reducedMotion === 'boolean' ? parsed.reducedMotion : false,
+        preferredInterfaceName:
+          typeof parsed.preferredInterfaceName === 'string' ? parsed.preferredInterfaceName : null,
+        autoSelectInterface:
+          typeof parsed.autoSelectInterface === 'boolean' ? parsed.autoSelectInterface : true
       }
 
       Logger.info('SettingsStore', 'Settings loaded successfully')
@@ -165,6 +173,27 @@ export class SettingsStore extends EventEmitter {
     if (patch.reducedMotion !== undefined && typeof patch.reducedMotion === 'boolean') {
       if (patch.reducedMotion !== this.settings.reducedMotion) {
         this.settings.reducedMotion = patch.reducedMotion
+        changed = true
+      }
+    }
+
+    if (
+      patch.preferredInterfaceName !== undefined &&
+      (typeof patch.preferredInterfaceName === 'string' || patch.preferredInterfaceName === null)
+    ) {
+      const validated =
+        typeof patch.preferredInterfaceName === 'string' && patch.preferredInterfaceName.trim()
+          ? patch.preferredInterfaceName
+          : null
+      if (validated !== this.settings.preferredInterfaceName) {
+        this.settings.preferredInterfaceName = validated
+        changed = true
+      }
+    }
+
+    if (patch.autoSelectInterface !== undefined && typeof patch.autoSelectInterface === 'boolean') {
+      if (patch.autoSelectInterface !== this.settings.autoSelectInterface) {
+        this.settings.autoSelectInterface = patch.autoSelectInterface
         changed = true
       }
     }

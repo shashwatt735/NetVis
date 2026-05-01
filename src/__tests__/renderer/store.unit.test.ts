@@ -12,7 +12,12 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { useNetVisStore } from '../../renderer/src/store'
-import type { AnonPacket, BufferStats, CaptureStatus, NetworkInterface } from '../../shared/capture-types'
+import type {
+  AnonPacket,
+  BufferStats,
+  CaptureStatus,
+  NetworkInterface
+} from '../../shared/capture-types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -232,7 +237,9 @@ describe('NetVisStore — setFilter', () => {
   })
 
   it('filter IPC error sets filterError and does not update filteredPackets', async () => {
-    const mockApplyFilter = vi.fn().mockResolvedValue({ packets: [], error: 'parse error at position 5' })
+    const mockApplyFilter = vi
+      .fn()
+      .mockResolvedValue({ packets: [], error: 'parse error at position 5' })
     vi.stubGlobal('window', { electronAPI: { applyFilter: mockApplyFilter } })
 
     const ps = [makePacket('p1')]
@@ -253,7 +260,11 @@ describe('NetVisStore — setFilter', () => {
     const mockApplyFilter = vi.fn().mockResolvedValue({ packets: [p1], error: null })
     vi.stubGlobal('window', { electronAPI: { applyFilter: mockApplyFilter } })
 
-    useNetVisStore.setState({ packets: [p1, p2], filteredPackets: [p1, p2], filterError: 'old error' })
+    useNetVisStore.setState({
+      packets: [p1, p2],
+      filteredPackets: [p1, p2],
+      filterError: 'old error'
+    })
 
     useNetVisStore.getState().setFilter('proto == TCP')
     await vi.runAllTimersAsync()
@@ -294,22 +305,22 @@ describe('NetVisStore — setCaptureStatus', () => {
     expect(useNetVisStore.getState().activeInterface).toBe('eth0')
   })
 
-  it('clears activeInterface when state becomes idle', () => {
+  it('keeps activeInterface when state becomes idle', () => {
     useNetVisStore.setState({ activeInterface: 'eth0' })
     useNetVisStore.getState().setCaptureStatus({ state: 'idle' })
-    expect(useNetVisStore.getState().activeInterface).toBeNull()
+    expect(useNetVisStore.getState().activeInterface).toBe('eth0')
   })
 
-  it('clears activeInterface when state becomes stopped', () => {
+  it('keeps activeInterface when state becomes stopped', () => {
     useNetVisStore.setState({ activeInterface: 'eth0' })
     useNetVisStore.getState().setCaptureStatus({ state: 'stopped' })
-    expect(useNetVisStore.getState().activeInterface).toBeNull()
+    expect(useNetVisStore.getState().activeInterface).toBe('eth0')
   })
 
-  it('clears activeInterface when state becomes error', () => {
+  it('keeps activeInterface when state becomes error', () => {
     useNetVisStore.setState({ activeInterface: 'eth0' })
     useNetVisStore.getState().setCaptureStatus({ state: 'error', message: 'fail' })
-    expect(useNetVisStore.getState().activeInterface).toBeNull()
+    expect(useNetVisStore.getState().activeInterface).toBe('eth0')
   })
 
   it('does not clear activeInterface when state becomes file', () => {
@@ -341,6 +352,13 @@ describe('NetVisStore — setInterfaces / setActiveInterface', () => {
     useNetVisStore.setState({ activeInterface: 'eth0' })
     useNetVisStore.getState().setActiveInterface(null)
     expect(useNetVisStore.getState().activeInterface).toBeNull()
+  })
+
+  it('stores interface preference state separately from selection', () => {
+    useNetVisStore.getState().setPreferredInterfaceName('eth0')
+    useNetVisStore.getState().setAutoSelectInterface(false)
+    expect(useNetVisStore.getState().preferredInterfaceName).toBe('eth0')
+    expect(useNetVisStore.getState().autoSelectInterface).toBe(false)
   })
 })
 

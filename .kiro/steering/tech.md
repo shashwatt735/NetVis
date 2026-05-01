@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Last Modified:** 2026-04-22
+**Last Modified:** 2026-05-02
 
 ## Core Framework
 
@@ -78,7 +78,7 @@ npm run build:linux      # Package for Linux
 ### Thread Ownership
 
 - **Worker thread owns:** `PcapFileSource`, `SimulatedReplaySource`, `CaptureController`, `Parser`
-- **Main process owns:** `CapSource` (live capture — runs on main thread due to Npcap/pcap_dispatch native thread safety on Windows), `CaptureEngine` orchestration, `WorkerSupervisor`, `Packet_Buffer`, `Anonymizer`, `IpcBatcher`, `Logger`, `Settings_Store`, and all IPC handlers
+- **Main process owns:** `CapSource` (live capture — runs on main thread due to Npcap/pcap_dispatch native thread safety on Windows), `CaptureEngine` orchestration, interface enrichment, `WorkerSupervisor`, `Packet_Buffer`, `Anonymizer`, `IpcBatcher`, `Logger`, `Settings_Store`, and all IPC handlers
 - **Renderer owns:** React UI, Zustand store, visualization rendering, and educational UX only
 
 > **Design note:** `CapSource` was moved from the worker thread to the main thread to resolve a native crash on Windows. The `cap` library's `pcap_dispatch` runs a background OS thread whose callbacks fire into the Node.js environment. In a `worker_threads` Worker, that environment pointer becomes invalid under Electron 40.x on Windows, causing an `(env) != nullptr` assertion crash. Running `CapSource` on the stable, long-lived main-process environment eliminates this crash. File and simulated replay sources remain in the worker thread since they use Node.js streams which are safe in workers.
@@ -88,6 +88,14 @@ npm run build:linux      # Package for Linux
 - **IPC is typed through shared contracts**
 - **All renderer-to-main IPC payloads are schema-validated in the main process**
 - **IPC handlers do not synthesize success state beyond the canonical privileged-domain sources of truth**
+
+### Interface Detection
+
+- **Capture-capable devices come from `Cap.deviceList()`**
+- **Windows OS metadata enrichment stays local to the main process**
+- **Shared interface classification lives in `src/shared/interface-classification.ts`**
+- **Normal UI hides raw local addresses and uses semantic labels plus recognizable adapter names**
+- **User interface preferences persist through `preferredInterfaceName` and `autoSelectInterface`**
 
 ### Ownership and Lifecycle
 

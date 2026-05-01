@@ -1,16 +1,23 @@
 import * as path from 'path'
 import { randomUUID } from 'crypto'
 import { EventEmitter } from 'events'
+import { execFileSync } from 'child_process'
 import type { Worker } from 'worker_threads'
 import type {
   AnonPacket,
   ParsedPacket,
   CaptureError,
+  NetworkInterface,
   SpeedMultiplier,
   WorkerInMessage,
   WorkerOutMessage
 } from '../../shared/capture-types'
 import type { InterfaceResult } from '../../shared/ipc-types'
+import {
+  classifyInterfaceKind,
+  semanticInterfaceLabel,
+  withInterfaceRecommendation
+} from '../../shared/interface-classification'
 import { WorkerSupervisor } from './worker-supervisor'
 import { IpcBatcher } from './ipc-batcher'
 import { CapSource } from './cap-source'
@@ -39,11 +46,177 @@ type CapDevice = {
 
 type InterfaceEnumerator = () => CapDevice[]
 
+type WindowsAdapter = {
+  ifIndex?: number
+  Name?: string
+  InterfaceDescription?: string
+  InterfaceGuid?: string
+  Status?: string
+}
+
+type WindowsIpInterface = {
+  InterfaceIndex?: number
+  InterfaceMetric?: number
+}
+
+type WindowsRoute = {
+  InterfaceIndex?: number
+  RouteMetric?: number
+}
+
+type WindowsIpAddress = {
+  InterfaceIndex?: number
+  IPAddress?: string
+}
+
+type WindowsInterfaceProbe = {
+  adapters?: WindowsAdapter[] | WindowsAdapter
+  ipInterfaces?: WindowsIpInterface[] | WindowsIpInterface
+  routes?: WindowsRoute[] | WindowsRoute
+  ipAddresses?: WindowsIpAddress[] | WindowsIpAddress
+}
+
+type WindowsInterfaceMetadata = {
+  ifIndex: number
+  name: string
+  description: string
+  guid: string
+  isUp: boolean
+  isDefaultRoute: boolean
+  hasAddress: boolean
+}
+
 function defaultInterfaceEnumerator(): CapDevice[] {
   ensureNpcapDllPath()
   // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
   const { Cap } = require('cap') as { Cap: any }
   return Cap.deviceList() as CapDevice[]
+}
+
+function asArray<T>(value: T[] | T | undefined): T[] {
+  if (!value) return []
+  return Array.isArray(value) ? value : [value]
+}
+
+function normalizeGuid(value?: string): string {
+  return (value ?? '').replace(/[{}]/g, '').toLowerCase()
+}
+
+function extractGuid(value: string): string {
+  const match = value.match(
+    /[({]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})[)}]?/i
+  )
+  return normalizeGuid(match?.[1])
+}
+
+function getWindowsInterfaceMetadata(): WindowsInterfaceMetadata[] {
+  if (process.platform !== 'win32' || process.env.VITEST) return []
+
+  try {
+    const script = [
+      "$ErrorActionPreference='SilentlyContinue'",
+      '$adapters=Get-NetAdapter | Select-Object ifIndex,Name,InterfaceDescription,InterfaceGuid,Status',
+      '$ipifs=Get-NetIPInterface -AddressFamily IPv4 | Select-Object InterfaceIndex,InterfaceMetric',
+      "$routes=Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' | Select-Object InterfaceIndex,RouteMetric",
+      '$ips=Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceIndex,IPAddress',
+      '[pscustomobject]@{adapters=$adapters;ipInterfaces=$ipifs;routes=$routes;ipAddresses=$ips} | ConvertTo-Json -Depth 5'
+    ].join('; ')
+
+    const raw = execFileSync('powershell.exe', ['-NoProfile', '-Command', script], {
+      encoding: 'utf8',
+      timeout: 1500,
+      maxBuffer: 1024 * 1024,
+      windowsHide: true
+    })
+    const parsed = JSON.parse(raw) as WindowsInterfaceProbe
+    const adapters = asArray(parsed.adapters)
+    const ipInterfaces = asArray(parsed.ipInterfaces)
+    const routes = asArray(parsed.routes)
+    const ipAddresses = asArray(parsed.ipAddresses)
+
+    const metricsByIndex = new Map<number, number>()
+    for (const ipInterface of ipInterfaces) {
+      if (typeof ipInterface.InterfaceIndex === 'number') {
+        metricsByIndex.set(ipInterface.InterfaceIndex, ipInterface.InterfaceMetric ?? 0)
+      }
+    }
+
+    let defaultRouteIndex: number | null = null
+    let defaultRouteMetric = Number.POSITIVE_INFINITY
+    for (const route of routes) {
+      if (typeof route.InterfaceIndex !== 'number') continue
+      const totalMetric = (route.RouteMetric ?? 0) + (metricsByIndex.get(route.InterfaceIndex) ?? 0)
+      if (totalMetric < defaultRouteMetric) {
+        defaultRouteMetric = totalMetric
+        defaultRouteIndex = route.InterfaceIndex
+      }
+    }
+
+    const addressIndexes = new Set(
+      ipAddresses
+        .filter(
+          (address) => typeof address.InterfaceIndex === 'number' && Boolean(address.IPAddress)
+        )
+        .map((address) => address.InterfaceIndex as number)
+    )
+
+    return adapters
+      .filter((adapter) => typeof adapter.ifIndex === 'number')
+      .map((adapter) => ({
+        ifIndex: adapter.ifIndex as number,
+        name: adapter.Name ?? '',
+        description: adapter.InterfaceDescription ?? '',
+        guid: normalizeGuid(adapter.InterfaceGuid),
+        isUp: adapter.Status === 'Up',
+        isDefaultRoute: adapter.ifIndex === defaultRouteIndex,
+        hasAddress: addressIndexes.has(adapter.ifIndex as number)
+      }))
+  } catch (err) {
+    Logger.debug('CaptureEngine', 'Windows interface metadata unavailable', {
+      error: err instanceof Error ? err.message : String(err)
+    })
+    return []
+  }
+}
+
+function findWindowsMetadata(
+  device: CapDevice,
+  metadata: WindowsInterfaceMetadata[]
+): WindowsInterfaceMetadata | undefined {
+  const deviceGuid = extractGuid(device.name)
+  const description = (device.description ?? '').trim().toLowerCase()
+
+  return metadata.find((item) => {
+    if (deviceGuid && item.guid === deviceGuid) return true
+    if (description && item.description.toLowerCase() === description) return true
+    return false
+  })
+}
+
+function buildNetworkInterface(
+  device: CapDevice,
+  metadata: WindowsInterfaceMetadata[]
+): NetworkInterface {
+  const windowsMetadata = findWindowsMetadata(device, metadata)
+  const displayName = device.description?.trim() || windowsMetadata?.description || device.name
+  const base = {
+    name: device.name,
+    displayName
+  }
+  const kind = classifyInterfaceKind(base)
+  const hasAddress =
+    windowsMetadata?.hasAddress ??
+    Boolean(device.addresses?.some((address) => Boolean(address.addr)))
+
+  return {
+    ...base,
+    isUp: windowsMetadata?.isUp ?? true,
+    kind,
+    semanticLabel: semanticInterfaceLabel(kind),
+    isDefaultRoute: windowsMetadata?.isDefaultRoute ?? false,
+    hasAddress,
+    isCaptureCapable: true
+  }
 }
 
 export class CaptureEngine extends EventEmitter {
@@ -187,13 +360,16 @@ export class CaptureEngine extends EventEmitter {
     // on Windows with Npcap; running it on the main thread avoids the env assertion crash.
     try {
       const devices = this.enumerateInterfaces()
+      const windowsMetadata = getWindowsInterfaceMetadata()
+      const interfaces = withInterfaceRecommendation(
+        devices.map((device) => buildNetworkInterface(device, windowsMetadata))
+      ).sort((a, b) => {
+        if (a.isRecommended !== b.isRecommended) return a.isRecommended ? -1 : 1
+        return (b.recommendationScore ?? 0) - (a.recommendationScore ?? 0)
+      })
       return {
         ok: true,
-        interfaces: devices.map((d) => ({
-          name: d.name,
-          displayName: d.description?.trim() || d.name,
-          isUp: true
-        }))
+        interfaces
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
@@ -357,7 +533,10 @@ export class CaptureEngine extends EventEmitter {
         }
         // Runtime source errors do not carry requestId.
         // If an import is waiting on command-complete, fail it immediately to avoid UI hangs.
-        this.rejectPendingCommandsWithPrefix('complete:', (msg as { type: 'error'; error: CaptureError }).error)
+        this.rejectPendingCommandsWithPrefix(
+          'complete:',
+          (msg as { type: 'error'; error: CaptureError }).error
+        )
         break
       case 'stopped':
         this.emit('stopped')

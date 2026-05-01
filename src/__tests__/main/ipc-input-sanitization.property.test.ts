@@ -225,10 +225,19 @@ describe('IPC Input Sanitization (P17)', () => {
         fc.record(
           {
             bufferCapacity: fc.option(fc.integer({ min: 1000, max: 100000 }), { nil: undefined }),
-            theme: fc.option(fc.constantFrom('light', 'dark', 'warm-dark', 'system'), { nil: undefined }),
+            theme: fc.option(fc.constantFrom('light', 'dark', 'warm-dark', 'system'), {
+              nil: undefined
+            }),
             welcomeSeen: fc.option(fc.boolean(), { nil: undefined }),
             completedChallenges: fc.option(fc.array(fc.string()), { nil: undefined }),
-            reducedMotion: fc.option(fc.boolean(), { nil: undefined })
+            reducedMotion: fc.option(fc.boolean(), { nil: undefined }),
+            preferredInterfaceName: fc.option(
+              fc.option(fc.string({ minLength: 1 }), { nil: null }),
+              {
+                nil: undefined
+              }
+            ),
+            autoSelectInterface: fc.option(fc.boolean(), { nil: undefined })
           },
           { requiredKeys: [] }
         ),

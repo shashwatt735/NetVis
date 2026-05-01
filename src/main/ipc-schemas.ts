@@ -41,7 +41,9 @@ export const SettingsPatchSchema = z
     theme: z.enum(['light', 'dark', 'warm-dark', 'system']).optional(),
     welcomeSeen: z.boolean().optional(),
     completedChallenges: z.array(z.string()).optional(),
-    reducedMotion: z.boolean().optional()
+    reducedMotion: z.boolean().optional(),
+    preferredInterfaceName: z.string().min(1).nullable().optional(),
+    autoSelectInterface: z.boolean().optional()
   })
   .strict()
 

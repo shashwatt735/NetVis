@@ -28,6 +28,8 @@ interface NetVisStore {
   captureStatus: CaptureStatus
   interfaces: NetworkInterface[]
   activeInterface: string | null
+  preferredInterfaceName: string | null
+  autoSelectInterface: boolean
   interfaceDetectionStatus: InterfaceDetectionStatus
 
   // Filter
@@ -59,6 +61,8 @@ interface NetVisStore {
   setCaptureStatus(status: CaptureStatus): void
   setInterfaces(interfaces: NetworkInterface[]): void
   setActiveInterface(iface: string | null): void
+  setPreferredInterfaceName(iface: string | null): void
+  setAutoSelectInterface(enabled: boolean): void
   setInterfaceDetectionStatus(status: InterfaceDetectionStatus): void
   setActivePage(page: AppPage): void
   goBack(): void
@@ -150,6 +154,8 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
   captureStatus: { state: 'idle' },
   interfaces: [],
   activeInterface: null,
+  preferredInterfaceName: null,
+  autoSelectInterface: true,
   interfaceDetectionStatus: 'idle',
   filterExpression: '',
   filterError: null,
@@ -192,7 +198,13 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
     // This ensures packets appear in real-time during capture
     const state = get()
     if (state.filterExpression.trim()) {
-      void applyFilterViaIpc(state.filterExpression, state.packets, state.selectedPacketId, set, false)
+      void applyFilterViaIpc(
+        state.filterExpression,
+        state.packets,
+        state.selectedPacketId,
+        set,
+        false
+      )
     }
   },
 
@@ -233,8 +245,6 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
       let activeInterface = state.activeInterface
       if (status.state === 'active') {
         activeInterface = status.iface
-      } else if (status.state === 'idle' || status.state === 'stopped' || status.state === 'error') {
-        activeInterface = null
       }
       // Clear import result when a new capture session starts (BUG-2)
       const importResult =
@@ -251,6 +261,14 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
 
   setActiveInterface: (iface: string | null) => {
     set({ activeInterface: iface })
+  },
+
+  setPreferredInterfaceName: (iface: string | null) => {
+    set({ preferredInterfaceName: iface })
+  },
+
+  setAutoSelectInterface: (enabled: boolean) => {
+    set({ autoSelectInterface: enabled })
   },
 
   setInterfaceDetectionStatus: (status: InterfaceDetectionStatus) => {

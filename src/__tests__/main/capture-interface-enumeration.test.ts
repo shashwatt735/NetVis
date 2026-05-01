@@ -50,7 +50,12 @@ vi.mock('../../main/capture/worker-supervisor', () => {
 })
 
 vi.mock('../../main/capture/ipc-batcher', () => ({
-  IpcBatcher: vi.fn(function mockIpcBatcher(this: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; push: ReturnType<typeof vi.fn>; discardPending: ReturnType<typeof vi.fn> }) {
+  IpcBatcher: vi.fn(function mockIpcBatcher(this: {
+    start: ReturnType<typeof vi.fn>
+    stop: ReturnType<typeof vi.fn>
+    push: ReturnType<typeof vi.fn>
+    discardPending: ReturnType<typeof vi.fn>
+  }) {
     this.start = vi.fn()
     this.stop = vi.fn()
     this.push = vi.fn()
@@ -82,10 +87,7 @@ describe('CaptureEngine interface enumeration', () => {
       }
     ])
 
-    engine = new CaptureEngine(
-      vi.fn() as (packets: AnonPacket[]) => void,
-      enumerateInterfaces
-    )
+    engine = new CaptureEngine(vi.fn() as (packets: AnonPacket[]) => void, enumerateInterfaces)
     engine.start()
 
     await new Promise((resolve) => setImmediate(resolve))
@@ -97,9 +99,19 @@ describe('CaptureEngine interface enumeration', () => {
   })
 
   it('returns interfaces on successful worker enumeration', async () => {
-    await expect(engine.getInterfaces()).resolves.toEqual({
+    await expect(engine.getInterfaces()).resolves.toMatchObject({
       ok: true,
-      interfaces: [{ name: 'eth0', displayName: 'Ethernet 0', isUp: true }]
+      interfaces: [
+        {
+          name: 'eth0',
+          displayName: 'Ethernet 0',
+          isUp: true,
+          kind: 'ethernet',
+          semanticLabel: 'Ethernet',
+          isCaptureCapable: true,
+          isRecommended: true
+        }
+      ]
     })
   })
 

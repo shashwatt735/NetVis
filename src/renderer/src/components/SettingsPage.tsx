@@ -1,7 +1,13 @@
 import type React from 'react'
-import type { Theme } from '../../../shared/capture-types'
+import type { NetworkInterface, Theme } from '../../../shared/capture-types'
+import {
+  classifyInterfaceKind,
+  semanticInterfaceLabel
+} from '../../../shared/interface-classification'
 import { useNetVisStore } from '../store'
+import { hideInterfaceAddress } from '../lib/interface-display'
 import { Button } from './ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 
 const THEMES: Array<{ value: Theme; label: string }> = [
   { value: 'dark', label: 'Dark' },
@@ -9,6 +15,13 @@ const THEMES: Array<{ value: Theme; label: string }> = [
   { value: 'light', label: 'Light' },
   { value: 'system', label: 'System' }
 ]
+
+function interfaceLabel(iface: NetworkInterface): string {
+  const semanticLabel =
+    iface.semanticLabel ?? semanticInterfaceLabel(iface.kind ?? classifyInterfaceKind(iface))
+  const adapterName = hideInterfaceAddress(iface.displayName)
+  return semanticLabel === 'Interface' ? adapterName : `${semanticLabel} · ${adapterName}`
+}
 
 function SettingsCard({
   title,
@@ -50,9 +63,7 @@ function SettingsCard({
           {description}
         </p>
       </div>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {children}
-      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>{children}</div>
     </section>
   )
 }
@@ -62,14 +73,47 @@ export function SettingsPage(): React.JSX.Element {
   const persistTheme = useNetVisStore((s) => s.persistTheme)
   const setWelcomeSeen = useNetVisStore((s) => s.setWelcomeSeen)
   const activeInterface = useNetVisStore((s) => s.activeInterface)
+  const preferredInterfaceName = useNetVisStore((s) => s.preferredInterfaceName)
+  const autoSelectInterface = useNetVisStore((s) => s.autoSelectInterface)
   const interfaces = useNetVisStore((s) => s.interfaces)
   const bufferStats = useNetVisStore((s) => s.bufferStats)
   const previousPage = useNetVisStore((s) => s.previousPage)
   const goBack = useNetVisStore((s) => s.goBack)
+  const setActiveInterface = useNetVisStore((s) => s.setActiveInterface)
+  const setPreferredInterfaceName = useNetVisStore((s) => s.setPreferredInterfaceName)
+  const setAutoSelectInterface = useNetVisStore((s) => s.setAutoSelectInterface)
 
   // Resolve interface display name
   const interfaceObj = interfaces.find((iface) => iface.name === activeInterface)
-  const displayName = interfaceObj?.displayName ?? activeInterface ?? 'Not selected'
+  const preferredInterface = interfaces.find((iface) => iface.name === preferredInterfaceName)
+  const displayName = interfaceObj
+    ? interfaceLabel(interfaceObj)
+    : (activeInterface ?? 'Not selected')
+  const defaultInterfaceDisplay = autoSelectInterface
+    ? 'Auto-detect recommended'
+    : preferredInterface
+      ? interfaceLabel(preferredInterface)
+      : (preferredInterfaceName ?? 'Not selected')
+
+  const saveDefaultInterface = (value: string): void => {
+    if (value === '__auto__') {
+      setAutoSelectInterface(true)
+      setPreferredInterfaceName(null)
+      void window.electronAPI.setSettings({
+        autoSelectInterface: true,
+        preferredInterfaceName: null
+      })
+      return
+    }
+
+    setAutoSelectInterface(false)
+    setPreferredInterfaceName(value)
+    setActiveInterface(value)
+    void window.electronAPI.setSettings({
+      autoSelectInterface: false,
+      preferredInterfaceName: value
+    })
+  }
 
   return (
     <section
@@ -130,7 +174,14 @@ export function SettingsPage(): React.JSX.Element {
             App Preferences
           </h1>
           <p
-            style={{ maxWidth: 620, margin: 0, color: 'var(--nv-text-secondary)', fontSize: 14, fontWeight: 600, lineHeight: 1.6 }}
+            style={{
+              maxWidth: 620,
+              margin: 0,
+              color: 'var(--nv-text-secondary)',
+              fontSize: 14,
+              fontWeight: 600,
+              lineHeight: 1.6
+            }}
           >
             Tune capture behavior, appearance, privacy notes, and local help from one place.
           </p>
@@ -157,13 +208,61 @@ export function SettingsPage(): React.JSX.Element {
             >
               <dt style={{ color: 'var(--nv-text-tertiary)' }}>Default Interface</dt>
               <dd style={{ margin: 0, fontFamily: 'var(--font-data)' }}>
-                {displayName}
+                {defaultInterfaceDisplay}
               </dd>
+              <dt style={{ color: 'var(--nv-text-tertiary)' }}>Selected Interface</dt>
+              <dd style={{ margin: 0, fontFamily: 'var(--font-data)' }}>{displayName}</dd>
               <dt style={{ color: 'var(--nv-text-tertiary)' }}>Buffer Usage</dt>
               <dd style={{ margin: 0, fontFamily: 'var(--font-data)' }}>
-                {bufferStats.count.toLocaleString()} / {bufferStats.capacity.toLocaleString()} packets ({bufferStats.percentage}%)
+                {bufferStats.count.toLocaleString()} / {bufferStats.capacity.toLocaleString()}{' '}
+                packets ({bufferStats.percentage}%)
               </dd>
             </dl>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <Button
+                  size="sm"
+                  variant={autoSelectInterface ? 'default' : 'outline'}
+                  onClick={() => saveDefaultInterface('__auto__')}
+                  aria-pressed={autoSelectInterface}
+                >
+                  Auto-detect
+                </Button>
+                <Button
+                  size="sm"
+                  variant={!autoSelectInterface ? 'default' : 'outline'}
+                  onClick={() => {
+                    if (activeInterface) saveDefaultInterface(activeInterface)
+                  }}
+                  disabled={!activeInterface}
+                  aria-pressed={!autoSelectInterface}
+                >
+                  Always use selected
+                </Button>
+              </div>
+
+              <Select
+                value={autoSelectInterface ? '__auto__' : (preferredInterfaceName ?? '__auto__')}
+                onValueChange={saveDefaultInterface}
+              >
+                <SelectTrigger
+                  size="sm"
+                  aria-label="Default capture interface"
+                  style={{ maxWidth: 420 }}
+                >
+                  <SelectValue placeholder="Default capture interface" />
+                </SelectTrigger>
+                <SelectContent style={{ minWidth: 360, maxWidth: 460 }}>
+                  <SelectItem value="__auto__">Auto-detect recommended interface</SelectItem>
+                  {interfaces.map((iface) => (
+                    <SelectItem key={iface.name} value={iface.name}>
+                      {interfaceLabel(iface)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div style={{ marginTop: 4 }}>
               <label
@@ -265,8 +364,8 @@ export function SettingsPage(): React.JSX.Element {
               }}
             >
               IP addresses, MAC addresses, and payload bytes are anonymized by default. This cannot
-              be disabled in the app. Imported and exported PCAP files stay wherever you choose
-              them on disk.
+              be disabled in the app. Imported and exported PCAP files stay wherever you choose them
+              on disk.
             </p>
           </SettingsCard>
 

@@ -43,6 +43,8 @@ describe('Settings_Store — unit tests', () => {
     expect(settings.welcomeSeen).toBe(false)
     expect(settings.completedChallenges).toEqual([])
     expect(settings.reducedMotion).toBe(false)
+    expect(settings.preferredInterfaceName).toBeNull()
+    expect(settings.autoSelectInterface).toBe(true)
   })
 
   /**
@@ -92,7 +94,9 @@ describe('Settings_Store — unit tests', () => {
       bufferCapacity: 25000,
       theme: 'light',
       welcomeSeen: true,
-      completedChallenges: ['challenge-1', 'challenge-2']
+      completedChallenges: ['challenge-1', 'challenge-2'],
+      preferredInterfaceName: 'eth0',
+      autoSelectInterface: false
     })
 
     await store.flush()
@@ -105,6 +109,8 @@ describe('Settings_Store — unit tests', () => {
     expect(settings.theme).toBe('light')
     expect(settings.welcomeSeen).toBe(true)
     expect(settings.completedChallenges).toEqual(['challenge-1', 'challenge-2'])
+    expect(settings.preferredInterfaceName).toBe('eth0')
+    expect(settings.autoSelectInterface).toBe(false)
   })
 
   /**
@@ -242,6 +248,20 @@ describe('Settings_Store — unit tests', () => {
     expect(settings.welcomeSeen).toBe(false) // default
     expect(settings.completedChallenges).toEqual([]) // default
     expect(settings.reducedMotion).toBe(false) // default
+    expect(settings.preferredInterfaceName).toBeNull()
+    expect(settings.autoSelectInterface).toBe(true)
+  })
+
+  it('handles default interface settings correctly', () => {
+    store = new SettingsStore(tempDir)
+
+    store.set({ preferredInterfaceName: 'eth0', autoSelectInterface: false })
+    expect(store.get().preferredInterfaceName).toBe('eth0')
+    expect(store.get().autoSelectInterface).toBe(false)
+
+    store.set({ preferredInterfaceName: null, autoSelectInterface: true })
+    expect(store.get().preferredInterfaceName).toBeNull()
+    expect(store.get().autoSelectInterface).toBe(true)
   })
 
   /**

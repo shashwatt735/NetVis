@@ -1,169 +1,113 @@
-# Project Status
+# NetVis Project Status
 
-**Last Modified:** 2026-04-27
+**Last updated:** 2026-05-02
 
-→ **Product Overview:** See `.kiro/steering/product.md`
-→ **Architecture:** See `docs/ARCHITECTURE.md`
-→ **Tech Stack:** See `.kiro/steering/tech.md`
+## Summary
 
----
+NetVis is v1.0-ready from an implementation standpoint. Core capture, file import/export, simulated replay, parsing, anonymization, filtering, visualization, onboarding, settings, and guided challenge flows are implemented.
 
-## Current Phase
+The latest documentation reconciliation also incorporated the interface-selection hardening work:
 
-**Phase 1 + Phase 2** — Complete  
-All core pipeline, UI, visualizations, and educational features are implemented and integrated.
+- Capture interfaces are classified as Ethernet, Wi-Fi, VPN, virtual, loopback, Bluetooth, or generic interface.
+- Windows interface metadata is used locally when available to identify status, address presence, and the default route.
+- VPN/TAP/TUN and virtual adapters are labeled as specialized and are not treated as beginner-friendly defaults by simple alphabetical ordering.
+- Users can persist a default capture interface or keep auto-detection enabled.
+- Stopping capture no longer clears the selected interface.
 
----
+## Current Verification Snapshot
 
-## Completed Work
+- `npm run typecheck:node`: passing.
+- `npm run typecheck:web`: passing.
+- `npm run typecheck:tests`: passing.
+- Focused main regression tests: passing.
+- Focused renderer interface/store regression tests: passing.
+- Test inventory: 50 `*.test.*` files, with 23 main-process test files and 27 renderer test files, plus renderer support utilities.
 
-### Phase 1 Backend (Tasks 1–11) ✅
+## Completed Areas
 
-- ✅ Capture Engine (live on main thread, file/simulated in worker)
-- ✅ Parser (Ethernet → IPv4/IPv6 → TCP/UDP/ICMP/DNS/ARP) with header-size and length validation
-- ✅ Anonymizer (HMAC-based payload pseudonymization, main-process IPC boundary)
-- ✅ Packet Buffer (ring buffer, 1K–100K capacity)
-- ✅ Logger (Pino, rotation, structured JSON)
-- ✅ Settings Store (persistent JSON)
-- ✅ IPC Layer (Zod validation, contextBridge)
-- ✅ IPC Batching (50ms/100 packets)
-- ✅ Error Normalization (platform-specific hints)
-- ✅ Filter Engine (lexer, recursive-descent parser, evaluator, `ts` field)
+### Capture and Packet Pipeline
 
-### Phase 1 UI (Tasks 13–21) ✅
+- Live capture through `cap` on the main process thread.
+- PCAP import and simulated replay in the worker thread.
+- Parser support for Ethernet, IPv4, IPv6, TCP, UDP, ICMP, DNS, and ARP.
+- Link-type normalization for `cap.open()` return values.
+- Packet buffer ring storage from 1,000 to 100,000 packets.
+- IPC batching at 50 ms or 100 packets.
+- Export path using anonymized packet bytes.
 
-- ✅ Zustand Store + Renderer Bootstrap
-- ✅ Tailwind CSS + Design System (IBM Plex Sans/JetBrains Mono via Fontsource, locked protocol palette, warm-dark-ready token system, Radix UI)
-- ✅ AppShell layout (Toolbar, StatusBar, InterfaceSelector, CaptureControls, FilterBar)
-- ✅ Packet List with virtualization (@tanstack/virtual, keyboard nav, ARIA)
-- ✅ Packet Detail Inspector (collapsible tree, hex strip, slide-in animation)
-- ✅ Field Explanations + HelpIcon (all protocol fields, help-text.json)
-- ✅ Protocol Chart (Recharts PieChart, protocol colors, accessible table)
-- ✅ Packet Flow Timeline (60-bucket BarChart, time-range filter on click)
+### Security and Privacy
 
-### Phase 1 Completion + Stabilization (Tasks 21.5–21.6) ✅
+- Renderer isolation through `contextBridge`.
+- Zod validation for renderer-to-main IPC payloads.
+- Main-process anonymization before renderer delivery.
+- No packet payload content in logs.
+- Local interface metadata used for scoring without normal UI exposure of raw local addresses.
 
-All capture control IPC handlers, buffer management, simulated replay UI, worker restart rebinding, settings bootstrap, path hardening, status flow, buffer stats throttling, and overflow notifications are complete.
+### Interface Selection
 
-### Phase 1 Remaining Tasks (22–28) ✅
+- `capture:getInterfaces` returns enriched `NetworkInterface` metadata when available.
+- Shared classification and scoring live in `src/shared/interface-classification.ts`.
+- `InterfaceSelector` shows semantic labels and recommendation badges.
+- `SettingsPage` includes a real default capture interface control.
+- Settings include `preferredInterfaceName` and `autoSelectInterface`.
 
-- ✅ Task 22: PCAP import/export (backend + renderer wiring complete)
-- ✅ Task 23: Onboarding — WelcomeScreen
-- ✅ Task 24: AdvancedSettingsPanel (buffer capacity, theme, reduced motion, log folder)
-- ✅ Task 25: Guided challenges (5 challenges, persistence, debounced evaluation)
-- ✅ Task 26: Privilege minimization (platform-specific error messages)
+### Renderer Experience
 
-### Phase 2 Visualizations (Tasks 29–33) ✅
+- Zustand store and renderer bootstrap.
+- Capture controls, toolbar, status bar, filter bar, and settings page.
+- Virtualized packet list and detail inspector.
+- Protocol chart, packet timeline, bandwidth chart, IP flow map, OSI layer diagram, and protocol animations.
+- Welcome screen and guided challenges.
+- Theme support for light, dark, warm-dark, and system.
 
-- ✅ Task 29: OSI Layer Diagram (7-layer stack, active layer highlighting, keyboard nav)
-- ✅ Task 30: IP Flow Map (D3 force simulation, node/edge click → filter)
-- ✅ Task 31: Bandwidth Chart (Recharts stacked area, 60s window, click → time filter)
-- ✅ Task 32: Protocol Animations (TCP handshake, DNS query, ICMP echo; play/pause/step)
+### Hardening and Fixes
 
-### Post-Phase-2 Bugfixes and Hardening ✅
+The detailed fix history is consolidated in [BUGFIX_REFERENCE.md](BUGFIX_REFERENCE.md). Major categories include:
 
-- ✅ Live capture moved to main thread (CapSource) — eliminates Npcap/pcap_dispatch crash on Windows
-- ✅ Link-type normalization: `cap.open()` returns string `'ETHERNET'`; explicit `LINK_TYPE_MAP` maps to numeric libpcap constants; unknown types logged once and mapped to `-1`
-- ✅ Parser validation hardened: TCP `dataOffset` bounds check, UDP `length` minimum validation, DNS gate uses UDP-declared payload length (not raw buffer length)
-- ✅ Stop button race fixed: `setCaptureStatus` called immediately in `handleStop` after IPC resolves
-- ✅ Replay speed change during replay: stop + restart with new speed
-- ✅ Import timeout increased to 5 minutes for large PCAP files
-- ✅ `PROTO_COLORS` import restored in `protocol-colors.ts` (was causing `ReferenceError` crash)
-- ✅ Locked protocol palette applied: TCP `#4E9CE8`, UDP `#9B7FE8`, ICMP `#E8A030`, DNS `#35B890`, ARP `#D678A8`, OTHER `#7A7A86`, plus IPv4 `#D4824A` and IPv6 `#4AB8D4`
-- ✅ `warm-dark` added to theme validation, persistence, and renderer class application
-- ✅ Error boundary added (`ErrorBoundary.tsx`) — render errors show message instead of blank screen
-- ✅ Fast Refresh incompatibilities fixed: utility functions extracted from component files into `*-utils.ts` modules
-- ✅ `--nv-accent` / `--nv-accent-dim` CSS variables added to theme
-- ✅ `getInterfaces()` guarded against being called during active capture
-- ✅ `completeChallenge` now persists to settings
-- ✅ `importResult` cleared on capture start
-- ✅ `statsThrottler.cleanup()` called on `before-quit`
-- ✅ Initial `buffer:stats` push on `did-finish-load`
-- ✅ `'stopped'` → `'idle'` transition after 800ms
-- ✅ Stale filter cleared on PCAP import
-- ✅ Concurrent `filter:apply` IPC calls protected by generation counter
-- ✅ `ChallengePanel.handleChallengeSuccess` wrapped in `useCallback`
-- ✅ Interface selector double-sort fixed (priority sort preserved)
-- ✅ `BandwidthChart` window anchored to latest packet timestamp (not `Date.now()`) — fixes empty chart for imported PCAPs
+- Windows live-capture crash prevention.
+- Worker command/ack lifecycle fixes.
+- Parser bounds validation.
+- PCAP import batching and timeout handling.
+- Renderer stale-state and filtering fixes.
+- Protocol color and theme consistency.
+- Interface recommendation and persistence fixes.
 
----
+## Current Known Considerations
 
-## Architecture Notes
-
-### Live Capture Threading
-
-`CapSource` runs on the **main process thread**, not the worker thread. The `cap` library's `pcap_dispatch` spawns a native OS background thread whose callbacks fire into the Node.js environment. In a `worker_threads` Worker on Windows with Npcap + Electron 40.x, that environment pointer becomes invalid, causing an `(env) != nullptr` assertion crash. The main process has a stable, long-lived environment that eliminates this crash. File and simulated replay sources remain in the worker thread.
-
-### Parser Validation
-
-The parser validates:
-- All minimum header sizes (Ethernet 14B, IPv4 20B, IPv6 40B, TCP 20B, UDP 8B, ICMP 4B, ARP 28B, DNS 12B)
-- IPv4 IHL (≥20, fits in buffer)
-- TCP `dataOffset` (≥20, fits in buffer; falls back to 20 if invalid)
-- UDP `length` (≥8; throws on invalid, preventing DNS dispatch on that packet)
-- DNS dispatch gated on `udpLength - 8 >= 12` AND buffer bounds (not just buffer length)
-
----
-
-## Test Suite
-
-- **50 test files** (22 main, 27 renderer + setup/utils)
-- **Property-based tests:** 100+ iterations each via fast-check
-- **Main process:** anonymizer, buffer, parser round-trip, parser layer ordering, parser payload boundaries, simulated replay, filter engine, IPC input sanitization, capture command semantics, capture import batching, interface enumeration, file-mode status flow, buffer stats throttling, phase 1 + phase 2 bugfix regressions, logger, settings store
-- **Renderer:** store, packet list virtualization, packet detail rendering, protocol chart, timeline buckets, bandwidth chart, OSI layer diagram, IP flow map, protocol animations, challenge activation/completion/persistence, field explanations, help text, filter challenges, accessibility regressions, capture controls feedback, interface selector, learn page, theme persistence, status bar overflow, time-range filter generation
-
----
-
-## Performance Metrics
-
-- ✅ Parser: <1ms per packet
-- ✅ Anonymizer: <0.5ms per packet
-- ✅ Ring buffer: O(1) operations
-- ✅ `packet:batch` channel capped at ≤20 calls/sec at 1,000 pps
-- ✅ `buffer:stats` throttled to ≤500ms spacing
-
-**Targets (all met):**
-- 1,000 pps sustained without UI lag
-- Packet visible within 200ms of capture
-- 30 fps renderer at 1,000 pps
-- ≤500 MB memory at 100K buffer
-
----
-
-## Dependencies
-
-**Production:** Electron 40.6.1, React 19.2.1, Zustand 5.x, Recharts 3.x, @tanstack/react-virtual 3.x, Radix UI, motion 12.x, cap, pcap-parser, pino + pino-roll, zod, lucide-react, tailwindcss 4.x, d3 7.x
-
-**Development:** Vitest 4.x, fast-check 4.x, jsdom 29.x, @testing-library/react 16.x, TypeScript 5.9.3, ESLint, Prettier, electron-vite 5.x, electron-builder 26.x
-
----
+- Live capture still depends on platform privileges and Npcap/libpcap availability.
+- VPN adapters may legitimately carry routed traffic, but NetVis treats them as specialized educational capture targets unless the user chooses them.
+- The app does not transmit interface metadata; all detection is local.
+- Very large captures are bounded by the configured in-memory ring buffer.
 
 ## Development Commands
 
 ```bash
-npm run dev                    # Start development server
-npm test                       # Run all tests once
-npm run typecheck              # Type-check all TypeScript (including tests)
-npm run typecheck:tests        # Type-check test files only
-npm run lint                   # Run ESLint
-npm run format                 # Format with Prettier
-npm run build                  # Development build (includes typecheck)
-npm run build:prod             # Production build (includes typecheck)
+npm run dev
+npm test
+npm run typecheck
+npm run lint
+npm run build
 ```
 
----
+Focused verification examples:
 
-## Document Index
+```bash
+npx vitest --run src/__tests__/main/capture-interface-enumeration.test.ts
+npx vitest --run src/__tests__/main/settings-store.unit.test.ts
+npx vitest --run --pool=threads --maxWorkers=1 src/__tests__/renderer/interface-selector-enumeration.test.tsx
+```
 
-| Document | Purpose |
-|----------|---------|
-| `docs/ARCHITECTURE.md` | System architecture, threading model, IPC contract |
-| `docs/PROJECT_STATUS.md` | This file — current implementation state |
-| `docs/PROJECT_DESIGN.md` | High-level product design and UX decisions |
-| `.kiro/specs/netvis-core/requirements.md` | Normative requirements (canonical) |
-| `.kiro/specs/netvis-core/design.md` | Technical design (canonical) |
-| `.kiro/specs/netvis-core/tasks.md` | Implementation task breakdown (canonical) |
-| `.kiro/steering/tech.md` | Technology stack and invariants |
-| `.kiro/steering/structure.md` | Project structure and conventions |
-| `.kiro/steering/product.md` | Product overview and principles |
-| `README.md` | Setup and getting started |
+## Document Authority
+
+| Document                                  | Role                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `.kiro/specs/netvis-core/requirements.md` | Canonical requirements.                                                                     |
+| `.kiro/specs/netvis-core/design.md`       | Canonical technical design.                                                                 |
+| `.kiro/specs/netvis-core/tasks.md`        | Historical task breakdown; not updated during this reconciliation.                          |
+| `docs/ARCHITECTURE.md`                    | Collaborator architecture reference.                                                        |
+| `docs/PROJECT_DESIGN.md`                  | Product and system design overview.                                                         |
+| `docs/PROJECT_STATUS.md`                  | Current implementation status.                                                              |
+| `docs/BUGFIX_REFERENCE.md`                | Consolidated bugfix and hardening record.                                                   |
+| `docs/UI_REFERENCE.md`                    | Consolidated UI and visualization reference.                                                |
+| `docs/TROUBLESHOOTING.md`                 | Operational troubleshooting for live capture, interfaces, import, and visualization issues. |
+| `docs/CODE_INDEX.md`                      | Module and test index.                                                                      |

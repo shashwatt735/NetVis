@@ -1,317 +1,178 @@
-# NetVis - Educational Network Packet Visualizer
+# NetVis
 
-A cross-platform desktop application for educational network packet visualization, built with Electron, React, and TypeScript. NetVis enables beginner networking students to capture live network packets, load saved PCAP files, and explore protocol behavior through real-time visualizations and guided challenges.
+NetVis is a cross-platform desktop application for learning packet-level networking. It captures live traffic, imports PCAP files, and turns protocol behavior into privacy-safe visualizations, guided challenges, and packet inspection views.
 
-## 🎯 Project Status
+The app is built with Electron, React, TypeScript, Vite, and libpcap/Npcap through the `cap` native module.
 
-**Current Phase:** All phases complete (Phase 1 + Phase 2)
-**Status:** Fully implemented and stabilized
-**Test Suite:** 50 test files (22 main, 27 renderer + setup/utils); property tests run 100+ iterations each
-**Code Quality:** TypeScript strict mode; typecheck, tests, and build passing; lint cleanup complete
+## Current Status
 
-See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed progress.
+NetVis is in a v1.0-ready state with the core capture pipeline, PCAP import/export, parser, anonymization boundary, filter engine, settings persistence, guided challenges, and Phase 2 visualizations implemented.
 
-## 🏗️ Architecture
+Current verification snapshot:
 
-NetVis follows a strict security-first architecture with process isolation:
+- 50 test files: 23 main-process test files and 27 renderer test files, plus renderer support utilities.
+- TypeScript strict mode is enabled.
+- Main, renderer, and test typechecks pass.
+- Focused regression tests cover interface enumeration, settings persistence, IPC validation, renderer selection state, and selector UI behavior.
 
-- **Main Process:** Capture Engine (live capture on main thread), Parser (live path), Anonymizer, Packet Buffer, Filter Engine, BufferStatsThrottler
-- **Worker Thread:** File/simulated replay sources, CaptureController, Parser (file/simulated path)
-- **Renderer Process:** React UI with Zustand state management
-- **IPC Bridge:** Explicit contract via contextBridge with zod validation
+See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the implementation status and [docs/BUGFIX_REFERENCE.md](docs/BUGFIX_REFERENCE.md) for consolidated fix history.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
+## Key Features
 
-## ✨ Features
+- Live packet capture through libpcap/Npcap.
+- PCAP import, PCAP export, and simulated replay with speed control.
+- Protocol parsing for Ethernet, IPv4, IPv6, TCP, UDP, ICMP, DNS, and ARP.
+- Main-process anonymization before packet data crosses IPC.
+- Configurable ring buffer from 1,000 to 100,000 packets.
+- Filter grammar for protocol, endpoint, port, length, and timestamp queries.
+- Virtualized packet list, packet detail inspector, timeline, protocol chart, bandwidth chart, IP flow map, OSI layer diagram, and protocol animations.
+- Guided challenges and persisted completion state.
+- Local interface detection with semantic labels, VPN/virtual classification, and a persisted default-interface preference.
+- Privacy-safe interface display: local addresses are used for scoring when available but hidden in normal UI.
 
-### Implemented (All Phases Complete)
+## Documentation Map
 
-- ✅ Live packet capture (libpcap/Npcap)
-- ✅ PCAP file import/export
-- ✅ Simulated replay with speed control (0.5×, 1×, 2×, 5×)
-- ✅ Protocol parsing (Ethernet, IPv4/IPv6, TCP/UDP/ICMP/DNS/ARP)
-- ✅ Payload anonymization (HMAC-based pseudonymization)
-- ✅ Ring buffer with configurable capacity (1K-100K packets)
-- ✅ Structured logging with rotation
-- ✅ Persistent settings store
-- ✅ Full IPC bridge with input validation
-- ✅ Zustand store and renderer bootstrap
-- ✅ Tailwind CSS and Visual Design System
-- ✅ Packet list with virtualization
-- ✅ Protocol chart and timeline visualizations
-- ✅ Packet detail inspector
-- ✅ Filter engine with BNF grammar
-- ✅ Educational layer with field explanations
-- ✅ AppShell layout, Toolbar, StatusBar
-- ✅ Onboarding — WelcomeScreen
-- ✅ Advanced Settings Panel
-- ✅ Guided challenges
-- ✅ Privilege minimization setup
-- ✅ OSI layer diagram
-- ✅ IP flow map (D3-based)
-- ✅ Bandwidth chart
-- ✅ Protocol animations
-- ✅ Error boundary and crash handling
-- ✅ Fast Refresh compatibility
-- ✅ Comprehensive bugfixes and hardening
+| Document                                                                           | Purpose                                                                                 |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                       | Process model, data flow, IPC, security boundaries, threading, and interface detection. |
+| [docs/PROJECT_DESIGN.md](docs/PROJECT_DESIGN.md)                                   | Product and system design overview for collaborators.                                   |
+| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)                                   | Current implementation status, verification, and document authority.                    |
+| [docs/BUGFIX_REFERENCE.md](docs/BUGFIX_REFERENCE.md)                               | Consolidated bugfix and hardening history.                                              |
+| [docs/UI_REFERENCE.md](docs/UI_REFERENCE.md)                                       | Consolidated UI, visualization, and responsive-layout reference.                        |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)                                 | Live capture, interface, import, and visualization troubleshooting.                     |
+| [docs/CODE_INDEX.md](docs/CODE_INDEX.md)                                           | Module inventory and test index.                                                        |
+| [.kiro/specs/netvis-core/requirements.md](.kiro/specs/netvis-core/requirements.md) | Canonical requirements.                                                                 |
+| [.kiro/specs/netvis-core/design.md](.kiro/specs/netvis-core/design.md)             | Canonical technical design.                                                             |
+| [.kiro/specs/netvis-core/tasks.md](.kiro/specs/netvis-core/tasks.md)               | Historical implementation task breakdown.                                               |
 
-### Future Enhancements
+## Requirements
 
-- 📋 Additional protocol support
-- 📋 Advanced filtering options
-- 📋 Export formats expansion
-- 📋 Performance optimizations
+- Node.js 22 or newer.
+- npm 9 or newer.
+- Platform packet-capture support for live capture:
+  - Windows: Npcap.
+  - Linux: libpcap and capture capabilities.
+  - macOS: built-in libpcap plus appropriate capture permissions.
 
-## 🚀 Quick Start
+File import and simulated replay do not require elevated packet-capture permissions.
 
-### Prerequisites
+## Windows Live Capture Setup
 
-- **Node.js:** 22.x or higher (tested on 24.x)
-- **npm:** 9.x or higher
+1. Install [Npcap](https://npcap.com/).
+2. During installation, enable WinPcap API-compatible mode.
+3. Prefer adding your user to the `Npcap Users` group.
+4. Log out and back in after changing group membership.
+5. As a fallback, run NetVis as Administrator.
 
-#### Platform-Specific Requirements for Live Capture
+If live capture is unavailable, NetVis shows a platform-specific error and PCAP import remains available.
 
-NetVis requires elevated privileges to capture network packets. Each platform has different requirements:
+## Linux Live Capture Setup
 
-##### Windows
-
-1. **Install Npcap:**
-   - Download and install [Npcap](https://npcap.com/) (WinPcap successor)
-   - During installation, select "Install Npcap in WinPcap API-compatible Mode"
-
-2. **User Group Membership:**
-   - NetVis requires membership in the "Npcap Users" group
-   - To add your user to this group:
-     1. Open Computer Management (Win+X → Computer Management)
-     2. Navigate to Local Users and Groups → Groups
-     3. Double-click "Npcap Users"
-     4. Click "Add" and add your username
-     5. Log out and log back in for changes to take effect
-
-3. **Alternative: Run as Administrator:**
-   - Right-click NetVis and select "Run as Administrator"
-   - This is less secure than using the Npcap Users group
-
-**If you see a permission error:** Verify Npcap is installed and you're in the Npcap Users group, or run as Administrator.
-
-##### Linux
-
-1. **Install libpcap:**
-
-   ```bash
-   # Debian/Ubuntu
-   sudo apt-get install libpcap-dev
-
-   # Fedora/RHEL
-   sudo dnf install libpcap-devel
-
-   # Arch
-   sudo pacman -S libpcap
-   ```
-
-2. **Grant Capabilities (Recommended):**
-   Instead of running as root, grant specific capabilities to the NetVis binary:
-
-   ```bash
-   sudo setcap cap_net_raw,cap_net_admin=eip /path/to/netvis
-   ```
-
-   Replace `/path/to/netvis` with the actual path to your NetVis executable.
-
-   **Example for AppImage:**
-
-   ```bash
-   sudo setcap cap_net_raw,cap_net_admin=eip ./NetVis-*.AppImage
-   ```
-
-3. **Alternative: Run with sudo:**
-   ```bash
-   sudo ./netvis
-   ```
-   This is less secure than using capabilities.
-
-**If you see a permission error:** Run the `setcap` command above or use `sudo`.
-
-##### macOS
-
-1. **libpcap (Built-in):**
-   - macOS includes libpcap by default, no installation needed
-
-2. **Grant Permissions:**
-
-   **Option 1: Run with sudo (Quick but less secure):**
-
-   ```bash
-   sudo /Applications/NetVis.app/Contents/MacOS/NetVis
-   ```
-
-   **Option 2: Grant Full Disk Access (Recommended):**
-   1. Open System Preferences → Security & Privacy → Privacy
-   2. Select "Full Disk Access" from the left sidebar
-   3. Click the lock icon and authenticate
-   4. Click "+" and add NetVis or your terminal application
-   5. Restart NetVis
-
-   **Option 3: BPF Device Permissions:**
-
-   ```bash
-   sudo chmod o+r /dev/bpf*
-   ```
-
-   Note: This must be repeated after each reboot.
-
-**If you see a permission error:** Use one of the options above. Full Disk Access is the most user-friendly for regular use.
-
-**Note:** A privileged helper using SMJobBless is planned for a future release to provide a more seamless macOS experience.
-
-### Installation
+Install libpcap:
 
 ```bash
-# Clone the repository
-git clone https://github.com/shashwatt735/NetVis.git
-cd netvis
+sudo apt-get install libpcap-dev
+```
 
-# Install dependencies
+For packaged builds, prefer granting capture capabilities to the app binary instead of running as root:
+
+```bash
+sudo setcap cap_net_raw,cap_net_admin=eip /path/to/netvis
+```
+
+## macOS Live Capture Setup
+
+macOS includes libpcap. Depending on the environment, live capture may require one of:
+
+- Starting the app from a privileged terminal.
+- Granting the terminal or app additional privacy permissions.
+- Adjusting `/dev/bpf*` permissions for the current boot.
+
+## Development
+
+Install dependencies:
+
+```bash
 npm install
 ```
 
-### Development
+Run the app in development mode:
 
 ```bash
-# Run in development mode
 npm run dev
-
-# Run tests
-npm test
-
-# Run linter
-npm run lint
-
-# Format code
-npm run format
 ```
 
-### Build
+Run verification:
 
 ```bash
-# For Windows
+npm test
+npm run typecheck
+npm run lint
+```
+
+Build:
+
+```bash
+npm run build
 npm run build:win
-
-# For macOS
 npm run build:mac
-
-# For Linux
 npm run build:linux
 ```
 
-## 🧪 Testing
+## Architecture Summary
 
-NetVis uses property-based testing with fast-check to validate correctness properties:
+NetVis keeps privileged packet work outside the renderer:
 
-```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
+```text
+Live capture or file source
+  -> Parser
+  -> Packet_Buffer stores ParsedPacket
+  -> Anonymizer at IPC boundary
+  -> packet:batch sends AnonPacket[]
+  -> Renderer visualizes anonymized data
 ```
 
-### Test Coverage
+Thread ownership:
 
-- **50 test files** (22 main process, 27 renderer + setup/utils)
-- **Property-based tests:** Parser round-trip, anonymizer determinism, buffer invariants, filter engine, simulated replay, protocol distribution, timeline buckets, IP flow graph, OSI layer rendering, challenge activation/completion, and more (100+ iterations each)
-- **Unit tests:** Boundary conditions, persistence, validation, IPC handlers, bugfix verification, store actions
+- Main process: live capture, packet buffer, anonymization, settings store, logger, IPC handlers, and renderer delivery.
+- Worker thread: PCAP file import, simulated replay, and file/simulated parsing.
+- Renderer: React UI, Zustand state, visualizations, and educational interaction.
 
-## 📚 Documentation
+Live capture runs on the main process thread because the `cap`/Npcap callback path is not safe inside Electron worker threads on Windows.
 
-- [Project Status](docs/PROJECT_STATUS.md) - Current progress and completed tasks
-- [Architecture](docs/ARCHITECTURE.md) - Detailed architecture documentation
-- [Requirements](.kiro/specs/netvis-core/requirements.md) - Functional requirements
-- [Design](.kiro/specs/netvis-core/design.md) - Technical design document
-- [Tasks](.kiro/specs/netvis-core/tasks.md) - Implementation task list
+## Interface Selection
 
-## 🛠️ Technology Stack
+NetVis detects interfaces locally and recommends a beginner-friendly capture adapter. The app scores available capture devices using adapter kind, status, addresses, and Windows default-route metadata when available.
 
-### Core
+The default behavior is:
 
-- **Electron:** 40.x - Cross-platform desktop framework
-- **React:** 19.x - UI framework
-- **TypeScript:** 5.x - Type-safe development (strict mode)
-- **Vite:** 7.x - Build tool and dev server
+- Prefer physical Ethernet or Wi-Fi for normal beginner captures.
+- Detect VPN/TAP/TUN, virtual, loopback, container, and Bluetooth adapters as specialized.
+- Show semantic labels such as `Ethernet`, `Wi-Fi`, `VPN`, `Virtual`, and `Loopback`.
+- Hide local addresses in normal UI.
+- Let users override the recommendation and persist a default capture interface.
 
-### Main Process
+This detection is local to the machine. NetVis does not transmit interface identifiers, IP addresses, MAC addresses, or gateway details.
 
-- **cap:** Live packet capture (libpcap/Npcap wrapper)
-- **pcap-parser:** PCAP file streaming
-- **pino:** Structured JSON logging
-- **pino-roll:** Log rotation
-- **zod:** Schema validation
+## Security and Privacy
 
-### Testing
+- The renderer has no direct Node.js access.
+- All renderer-to-main IPC payloads are validated with Zod.
+- Packet payloads and endpoint identifiers are anonymized before crossing IPC.
+- The packet buffer stores privileged `ParsedPacket` objects; the renderer receives only `AnonPacket` objects.
+- Raw local interface addresses are not displayed by default.
+- Logs avoid packet payload content.
 
-- **Vitest:** Test runner
-- **fast-check:** Property-based testing
-- **jsdom:** DOM environment for renderer tests
-- **@testing-library/react:** React component testing utilities
+## Contributing
 
-### Code Quality
+Before changing behavior, read:
 
-- **ESLint:** Linting with TypeScript support
-- **Prettier:** Code formatting
+1. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+2. [.kiro/specs/netvis-core/design.md](.kiro/specs/netvis-core/design.md)
+3. [docs/CODE_INDEX.md](docs/CODE_INDEX.md)
 
-## 🔒 Security
+Keep changes aligned with the architecture invariants, add or update focused tests for behavioral changes, and run typecheck plus the relevant test slice before handing off.
 
-NetVis follows strict security principles:
+## License
 
-- **ARCH-01:** Explicit IPC contract via contextBridge
-- **ARCH-02:** `nodeIntegration: false`, `contextIsolation: true`
-- **ARCH-03:** No remote URLs loaded
-- **ARCH-04:** Anonymization in main process only
-- **ARCH-05:** Unidirectional data flow
-- **ARCH-06:** TypeScript strict mode
-- **ARCH-07:** One owner per request lifecycle
-- **ARCH-08:** One owner per renderer-visible push channel
-- **ARCH-09:** Packet_Buffer stores ParsedPacket in the privileged domain; only AnonPacket crosses IPC to the renderer
-- **ARCH-10:** Renderer-visible packet delivery only through `packet:batch` push channel
-- **ARCH-11:** Live capture, file import, and simulated replay are separate user-initiated modes with no silent fallback
-- **ARCH-12:** File path and target validation before PCAP operations
-- **ARCH-13:** Platform-specific privilege minimization
-- **ARCH-14:** Thread ownership: worker for file/simulated replay acquisition and parsing; main for live capture (`CapSource`), privileged operations, and IPC delivery; renderer for UI only
-
-All IPC payloads are validated with zod schemas before processing.
-
-## 🤝 Contributing
-
-This project follows spec-driven development:
-
-1. **Requirements** define what to build
-2. **Design** defines how to build it
-3. **Tasks** break down implementation
-4. **Property-based tests** validate correctness
-
-All contributions must:
-
-- Pass all existing tests
-- Add tests for new functionality
-- Pass ESLint and Prettier checks
-- Maintain TypeScript strict mode compliance
-- Follow security architecture invariants
-
-## 📝 License
-
-[To be determined]
-
-## 🙏 Acknowledgments
-
-- [Electron](https://www.electronjs.org/) - Cross-platform desktop framework
-- [libpcap](https://www.tcpdump.org/) - Packet capture library
-- [Npcap](https://npcap.com/) - Windows packet capture driver
-- [fast-check](https://github.com/dubzzz/fast-check) - Property-based testing
-
-## 📧 Contact
-
-[Shashwat Maurya](mailto:shwtm314@gmail.com)
-
----
-
-**Built with ❤️ for networking education**
+To be determined.

@@ -2,74 +2,52 @@ import { useEffect, useState } from 'react'
 import type React from 'react'
 import { AlertTriangle, CircleHelp, RefreshCw } from 'lucide-react'
 import type { NetworkInterface } from '../../../shared/capture-types'
+import {
+  classifyInterfaceKind,
+  semanticInterfaceLabel,
+  withInterfaceRecommendation
+} from '../../../shared/interface-classification'
 import { useNetVisStore } from '../store'
+import { hideInterfaceAddress } from '../lib/interface-display'
 import { HelpIcon } from './HelpIcon'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { toast } from 'sonner'
 
-function interfacePriority(iface: NetworkInterface): number {
-  const label = `${iface.displayName} ${iface.name}`.toLowerCase()
-
-  if (label.includes('loopback') || label.includes('npf_loopback') || label === 'lo') {
-    return 4
-  }
-
-  if (
-    label.includes('virtual') ||
-    label.includes('vmware') ||
-    label.includes('hyper-v') ||
-    label.includes('docker') ||
-    label.includes('vbox') ||
-    label.includes('tunnel') ||
-    label.includes('teredo') ||
-    label.includes('bluetooth')
-  ) {
-    return 3
-  }
-
-  if (/\bwi-?fi\b|\bwlan\b/.test(label)) {
-    return 1
-  }
-
-  if (/\bethernet\b|\blan\b/.test(label)) {
-    return 0
-  }
-
-  return 2
-}
-
-function interfaceKind(iface: NetworkInterface): string {
-  const label = `${iface.displayName} ${iface.name}`.toLowerCase()
-  if (label.includes('loopback') || label.includes('npf_loopback') || label === 'lo')
-    return 'Loopback'
-  if (/\bwi-?fi\b|\bwlan\b/.test(label)) return 'Wi-Fi'
-  if (/\bethernet\b|\blan\b/.test(label)) return 'Ethernet'
-  if (
-    label.includes('virtual') ||
-    label.includes('vmware') ||
-    label.includes('hyper-v') ||
-    label.includes('docker') ||
-    label.includes('vbox') ||
-    label.includes('tunnel') ||
-    label.includes('teredo')
-  ) {
-    return 'Virtual'
-  }
-  if (label.includes('bluetooth')) return 'Bluetooth'
-  return 'Interface'
-}
-
 function sortInterfacesForSelection(interfaces: NetworkInterface[]): NetworkInterface[] {
-  return [...interfaces].sort((a, b) => {
-    const priorityDiff = interfacePriority(a) - interfacePriority(b)
-    if (priorityDiff !== 0) return priorityDiff
-    return a.displayName.localeCompare(b.displayName)
+  return withInterfaceRecommendation(interfaces).sort((a, b) => {
+    if (a.isRecommended !== b.isRecommended) return a.isRecommended ? -1 : 1
+    const scoreDiff = (b.recommendationScore ?? 0) - (a.recommendationScore ?? 0)
+    if (scoreDiff !== 0) return scoreDiff
+    return hideInterfaceAddress(a.displayName).localeCompare(hideInterfaceAddress(b.displayName))
   })
 }
 
 function pickRecommendedInterface(interfaces: NetworkInterface[]): string | null {
   const sorted = sortInterfacesForSelection(interfaces)
-  return sorted[0]?.name ?? null
+  return sorted.find((iface) => iface.isRecommended)?.name ?? sorted[0]?.name ?? null
+}
+
+function interfaceKindLabel(iface: NetworkInterface): string {
+  return iface.semanticLabel ?? semanticInterfaceLabel(iface.kind ?? classifyInterfaceKind(iface))
+}
+
+function displayInterfaceName(iface: NetworkInterface): string {
+  const adapterName = hideInterfaceAddress(iface.displayName)
+  const label = interfaceKindLabel(iface)
+  return label === 'Interface' ? adapterName : `${label} · ${adapterName}`
+}
+
+function statusBadges(iface: NetworkInterface, isRecommended: boolean): string[] {
+  const badges: string[] = []
+  if (isRecommended) badges.push('Recommended')
+  if (iface.isDefaultRoute) badges.push('Primary route')
+  if (iface.kind === 'vpn' || iface.kind === 'virtual' || iface.kind === 'bluetooth') {
+    badges.push('Specialized')
+  }
+  if (iface.kind === 'loopback') badges.push('Local only')
+  if (iface.hasAddress === false) badges.push('No address')
+  badges.push('Local address hidden')
+  return badges
 }
 
 /**
@@ -80,9 +58,13 @@ function pickRecommendedInterface(interfaces: NetworkInterface[]): string | null
 export function InterfaceSelector(): React.JSX.Element {
   const interfaces = useNetVisStore((s) => s.interfaces)
   const activeInterface = useNetVisStore((s) => s.activeInterface)
+  const preferredInterfaceName = useNetVisStore((s) => s.preferredInterfaceName)
+  const autoSelectInterface = useNetVisStore((s) => s.autoSelectInterface)
   const captureStatus = useNetVisStore((s) => s.captureStatus)
   const setInterfaces = useNetVisStore((s) => s.setInterfaces)
   const setActiveInterface = useNetVisStore((s) => s.setActiveInterface)
+  const setPreferredInterfaceName = useNetVisStore((s) => s.setPreferredInterfaceName)
+  const setAutoSelectInterface = useNetVisStore((s) => s.setAutoSelectInterface)
   const setInterfaceDetectionStatus = useNetVisStore((s) => s.setInterfaceDetectionStatus)
   const [enumError, setEnumError] = useState<string | null>(null)
   const [platformHint, setPlatformHint] = useState<string | null>(null)
@@ -157,17 +139,41 @@ export function InterfaceSelector(): React.JSX.Element {
   useEffect(() => {
     if (
       interfaces.length > 0 &&
-      !activeInterface &&
       captureStatus.state !== 'active' &&
       captureStatus.state !== 'file' &&
       captureStatus.state !== 'simulated'
     ) {
+      const preferredIsAvailable =
+        preferredInterfaceName !== null &&
+        interfaces.some((iface) => iface.name === preferredInterfaceName)
+
+      if (!autoSelectInterface && preferredIsAvailable) {
+        if (activeInterface !== preferredInterfaceName) {
+          setActiveInterface(preferredInterfaceName)
+        }
+        return
+      }
+
       const recommended = pickRecommendedInterface(interfaces)
-      if (recommended) {
+      const activeStillAvailable =
+        activeInterface !== null && interfaces.some((iface) => iface.name === activeInterface)
+
+      if (
+        recommended &&
+        (autoSelectInterface || !activeStillAvailable) &&
+        activeInterface !== recommended
+      ) {
         setActiveInterface(recommended)
       }
     }
-  }, [interfaces, activeInterface, captureStatus.state, setActiveInterface])
+  }, [
+    interfaces,
+    activeInterface,
+    preferredInterfaceName,
+    autoSelectInterface,
+    captureStatus.state,
+    setActiveInterface
+  ])
 
   const handleRetry = async (): Promise<void> => {
     setIsRetrying(true)
@@ -321,6 +327,12 @@ export function InterfaceSelector(): React.JSX.Element {
         value={selectedValue ?? ''}
         onValueChange={(val) => {
           setActiveInterface(val)
+          setPreferredInterfaceName(val)
+          setAutoSelectInterface(false)
+          void window.electronAPI.setSettings({
+            preferredInterfaceName: val,
+            autoSelectInterface: false
+          })
         }}
         disabled={isCapturing}
       >
@@ -341,7 +353,7 @@ export function InterfaceSelector(): React.JSX.Element {
         >
           <SelectValue placeholder="Select interface…">
             {selectedInterface
-              ? selectedInterface.displayName
+              ? displayInterfaceName(selectedInterface)
               : selectedValue
                 ? selectedValue
                 : undefined}
@@ -355,9 +367,13 @@ export function InterfaceSelector(): React.JSX.Element {
           ) : (
             interfaces.map((iface) => {
               const isRecommended = iface.name === recommendedInterface
+              const badges = statusBadges(iface, isRecommended)
               return (
                 <SelectItem key={iface.name} value={iface.name}>
-                  <span className="flex min-w-0 items-center gap-3" style={{ padding: '6px 0 6px 8px', width: '100%' }}>
+                  <span
+                    className="flex min-w-0 items-center gap-3"
+                    style={{ padding: '6px 0 6px 8px', width: '100%' }}
+                  >
                     <span
                       style={{
                         width: 6,
@@ -381,40 +397,43 @@ export function InterfaceSelector(): React.JSX.Element {
                           color: 'var(--nv-text-primary)',
                           lineHeight: 1.3
                         }}
-                        title={iface.displayName}
+                        title={hideInterfaceAddress(iface.displayName)}
                       >
-                        {iface.displayName}
+                        {displayInterfaceName(iface)}
                       </span>
-                      <span style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span
-                          style={{
-                            fontSize: 10,
-                            color: 'var(--nv-text-secondary)',
-                            border: '1px solid var(--nv-border-subtle)',
-                            borderRadius: 'var(--nv-radius-sm)',
-                            padding: '2px 6px',
-                            fontWeight: 500,
-                            lineHeight: 1
-                          }}
-                        >
-                          {interfaceKind(iface)}
-                        </span>
-                        {isRecommended && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          gap: 6,
+                          marginTop: 6,
+                          flexWrap: 'wrap',
+                          alignItems: 'center'
+                        }}
+                      >
+                        {badges.map((badge) => (
                           <span
+                            key={badge}
                             style={{
                               fontSize: 10,
-                              color: 'var(--proto-dns)',
-                              border: '1px solid var(--proto-dns-border)',
+                              color:
+                                badge === 'Recommended'
+                                  ? 'var(--proto-dns)'
+                                  : 'var(--nv-text-secondary)',
+                              border:
+                                badge === 'Recommended'
+                                  ? '1px solid var(--proto-dns-border)'
+                                  : '1px solid var(--nv-border-subtle)',
                               borderRadius: 'var(--nv-radius-sm)',
                               padding: '2px 6px',
-                              backgroundColor: 'var(--proto-dns-dim)',
+                              backgroundColor:
+                                badge === 'Recommended' ? 'var(--proto-dns-dim)' : 'transparent',
                               fontWeight: 500,
                               lineHeight: 1
                             }}
                           >
-                            Recommended
+                            {badge}
                           </span>
-                        )}
+                        ))}
                       </span>
                     </span>
                   </span>
