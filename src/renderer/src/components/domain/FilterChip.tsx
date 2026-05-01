@@ -43,7 +43,7 @@ export function FilterChip({ label, onRemove }: FilterChipProps): React.JSX.Elem
                         height: 24,
                         borderRadius: '50%',
                         marginLeft: 'var(--nv-space-1)',
-                        background: 'rgba(59,130,246,0.15)',
+                        background: 'rgba(78,156,232,0.15)',
                         border: 'none',
                         cursor: 'pointer',
                         color: 'var(--proto-tcp)',

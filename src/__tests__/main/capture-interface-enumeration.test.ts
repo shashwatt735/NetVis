@@ -3,6 +3,12 @@ import { EventEmitter } from 'events'
 import type { Worker } from 'worker_threads'
 import type { AnonPacket } from '../../shared/capture-types'
 
+type TestCapDevice = {
+  name: string
+  description?: string
+  addresses?: Array<{ addr?: string }>
+}
+
 interface MockWorker extends EventEmitter {
   postMessage: ReturnType<typeof vi.fn>
   terminate: ReturnType<typeof vi.fn>
@@ -65,19 +71,24 @@ import { CaptureEngine } from '../../main/capture'
 
 describe('CaptureEngine interface enumeration', () => {
   let engine: CaptureEngine
-  let mockWorker: MockWorker
-
-  type EngineInternals = {
-    supervisor: { _mockWorker: MockWorker }
-  }
+  let enumerateInterfaces: ReturnType<typeof vi.fn<() => TestCapDevice[]>>
 
   beforeEach(async () => {
-    engine = new CaptureEngine(vi.fn() as (packets: AnonPacket[]) => void)
+    enumerateInterfaces = vi.fn().mockReturnValue([
+      {
+        name: 'eth0',
+        description: 'Ethernet 0',
+        addresses: [{ addr: '192.168.1.10' }]
+      }
+    ])
+
+    engine = new CaptureEngine(
+      vi.fn() as (packets: AnonPacket[]) => void,
+      enumerateInterfaces
+    )
     engine.start()
 
     await new Promise((resolve) => setImmediate(resolve))
-    const internals = engine as unknown as EngineInternals
-    mockWorker = internals.supervisor._mockWorker
   })
 
   afterEach(() => {
@@ -86,37 +97,21 @@ describe('CaptureEngine interface enumeration', () => {
   })
 
   it('returns interfaces on successful worker enumeration', async () => {
-    const resultPromise = engine.getInterfaces()
-
-    mockWorker.emit('message', {
-      type: 'interfaces',
-      result: {
-        ok: true,
-        interfaces: [{ name: 'eth0', displayName: 'Ethernet 0', isUp: true }]
-      }
-    })
-
-    await expect(resultPromise).resolves.toEqual({
+    await expect(engine.getInterfaces()).resolves.toEqual({
       ok: true,
       interfaces: [{ name: 'eth0', displayName: 'Ethernet 0', isUp: true }]
     })
   })
 
-  it('surfaces worker enumeration failures instead of collapsing them into an empty list', async () => {
-    const resultPromise = engine.getInterfaces()
-    const error = 'The packet capture library could not be loaded. Live capture is unavailable.'
-    const platformHint =
-      'Run NetVis as Administrator, and ensure Npcap is installed from npcap.com.'
-
-    mockWorker.emit('message', {
-      type: 'interfaces',
-      result: { ok: false, error, platformHint }
+  it('surfaces cap enumeration failures instead of collapsing them into an empty list', async () => {
+    enumerateInterfaces.mockImplementation(() => {
+      throw new Error('Npcap unavailable')
     })
 
-    await expect(resultPromise).resolves.toEqual({
+    await expect(engine.getInterfaces()).resolves.toMatchObject({
       ok: false,
-      error,
-      platformHint
+      error: expect.any(String),
+      platformHint: expect.any(String)
     })
   })
 })

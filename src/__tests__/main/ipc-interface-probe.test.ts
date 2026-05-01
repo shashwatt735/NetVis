@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { registeredHandlers, ipcMainHandle, loggerMock, workerInstances, WorkerMock } = vi.hoisted(
+const { registeredHandlers, ipcMainHandle, loggerMock, workerInstances, WorkerMock, getCaptureEngineMock } = vi.hoisted(
   () => {
     const registeredHandlers = new Map<string, (...args: unknown[]) => unknown>()
 
@@ -48,7 +48,8 @@ const { registeredHandlers, ipcMainHandle, loggerMock, workerInstances, WorkerMo
         error: vi.fn()
       },
       workerInstances,
-      WorkerMock
+      WorkerMock,
+      getCaptureEngineMock: vi.fn()
     }
   }
 )
@@ -77,7 +78,7 @@ vi.mock('../../main/packet-buffer', () => ({
 }))
 
 vi.mock('../../main/capture', () => ({
-  getCaptureEngine: vi.fn()
+  getCaptureEngine: getCaptureEngineMock
 }))
 
 vi.mock('../../main/parser', () => ({
@@ -105,6 +106,7 @@ describe('capture:getInterfaces probe worker handler', () => {
     loggerMock.warn.mockClear()
     loggerMock.error.mockClear()
     WorkerMock.mockClear()
+    getCaptureEngineMock.mockReset()
     vi.useRealTimers()
 
     registerIpcHandlers(() => null)
@@ -121,39 +123,33 @@ describe('capture:getInterfaces probe worker handler', () => {
     return (handler as () => Promise<unknown>)()
   }
 
-  it('uses a short-lived probe worker and returns successful interface results', async () => {
-    const resultPromise = invokeHandler()
-
-    expect(WorkerMock).toHaveBeenCalledWith(expect.stringContaining('capture-worker.js'))
-    expect(workerInstances).toHaveLength(1)
-    expect(workerInstances[0]!.postMessage).toHaveBeenCalledWith({ type: 'get-interfaces' })
-
-    workerInstances[0]!.emit('message', {
-      type: 'interfaces',
-      result: {
+  it('delegates to CaptureEngine and returns successful interface results', async () => {
+    getCaptureEngineMock.mockReturnValue({
+      getInterfaces: vi.fn().mockResolvedValue({
         ok: true,
         interfaces: [{ name: 'eth0', displayName: 'Ethernet', isUp: true }]
-      }
+      })
     })
 
-    await expect(resultPromise).resolves.toEqual({
+    await expect(invokeHandler()).resolves.toEqual({
       ok: true,
       interfaces: [{ name: 'eth0', displayName: 'Ethernet', isUp: true }]
     })
-    expect(workerInstances[0]!.terminate).toHaveBeenCalledTimes(1)
+    expect(WorkerMock).not.toHaveBeenCalled()
   })
 
-  it('returns a structured failure when the probe worker times out', async () => {
-    vi.useFakeTimers()
+  it('returns a structured failure when CaptureEngine enumeration fails', async () => {
+    getCaptureEngineMock.mockReturnValue({
+      getInterfaces: vi.fn().mockResolvedValue({
+        ok: false,
+        error: 'The packet capture library could not be loaded. Live capture is unavailable.'
+      })
+    })
 
-    const resultPromise = invokeHandler()
-
-    await vi.advanceTimersByTimeAsync(3000)
-
-    await expect(resultPromise).resolves.toMatchObject({
+    await expect(invokeHandler()).resolves.toMatchObject({
       ok: false,
       error: 'The packet capture library could not be loaded. Live capture is unavailable.'
     })
-    expect(workerInstances[0]!.terminate).toHaveBeenCalledTimes(1)
+    expect(WorkerMock).not.toHaveBeenCalled()
   })
 })

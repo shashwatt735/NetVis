@@ -26,7 +26,7 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import type { AnonPacket, ProtocolName } from '../../shared/capture-types'
-import { buildFlowGraph } from '../../renderer/src/components/IPFlowMap'
+import { buildFlowGraph } from '../../renderer/src/components/ip-flow-utils'
 
 // ─── Arbitraries ─────────────────────────────────────────────────────────────
 
@@ -44,14 +44,15 @@ const ipv4Arb = fc
   .map(([a, b, c, d]) => `${a}.${b}.${c}.${d}`)
 
 /** Minimal AnonPacket with only the fields buildFlowGraph reads */
-const minimalPacketArb: fc.Arbitrary<Pick<AnonPacket, 'id' | 'srcAddress' | 'dstAddress' | 'protocol' | 'length'>> =
-  fc.record({
-    id: fc.uuid(),
-    srcAddress: ipv4Arb,
-    dstAddress: ipv4Arb,
-    protocol: protocolArb,
-    length: fc.integer({ min: 20, max: 1500 }),
-  })
+const minimalPacketArb: fc.Arbitrary<
+  Pick<AnonPacket, 'id' | 'srcAddress' | 'dstAddress' | 'protocol' | 'length'>
+> = fc.record({
+  id: fc.uuid(),
+  srcAddress: ipv4Arb,
+  dstAddress: ipv4Arb,
+  protocol: protocolArb,
+  length: fc.integer({ min: 20, max: 1500 })
+})
 
 const packetListArb = fc.array(minimalPacketArb, { minLength: 0, maxLength: 200 })
 const nonEmptyPacketListArb = fc.array(minimalPacketArb, { minLength: 1, maxLength: 200 })
@@ -79,7 +80,7 @@ describe('IP flow graph construction (P21)', () => {
         const graph = buildFlowGraph(packets as AnonPacket[])
         const uniqueIPs = new Set([
           ...packets.map((p) => p.srcAddress),
-          ...packets.map((p) => p.dstAddress),
+          ...packets.map((p) => p.dstAddress)
         ])
         expect(graph.nodes).toHaveLength(uniqueIPs.size)
         for (const ip of uniqueIPs) {
@@ -197,7 +198,10 @@ describe('IP flow graph construction (P21)', () => {
           let maxCount = 0
           let dominant = 'OTHER'
           for (const [proto, count] of protoCounts) {
-            if (count > maxCount) { maxCount = count; dominant = proto }
+            if (count > maxCount) {
+              maxCount = count
+              dominant = proto
+            }
           }
           expect(edge.dominantProtocol).toBe(dominant)
         }

@@ -2,15 +2,11 @@
 
 A cross-platform desktop application for educational network packet visualization, built with Electron, React, and TypeScript. NetVis enables beginner networking students to capture live network packets, load saved PCAP files, and explore protocol behavior through real-time visualizations and guided challenges.
 
-# NetVis - Educational Network Packet Visualizer
-
-A cross-platform desktop application for educational network packet visualization, built with Electron, React, and TypeScript. NetVis enables beginner networking students to capture live network packets, load saved PCAP files, and explore protocol behavior through real-time visualizations and guided challenges.
-
 ## 🎯 Project Status
 
 **Current Phase:** All phases complete (Phase 1 + Phase 2)
 **Status:** Fully implemented and stabilized
-**Test Coverage:** 332 tests passing (28 test files)
+**Test Suite:** 50 test files (22 main, 27 renderer + setup/utils); property tests run 100+ iterations each
 **Code Quality:** TypeScript strict mode; typecheck, tests, and build passing; lint cleanup complete
 
 See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed progress.
@@ -19,7 +15,8 @@ See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed progress.
 
 NetVis follows a strict security-first architecture with process isolation:
 
-- **Main Process:** Capture Engine, Parser, Anonymizer, Packet Buffer
+- **Main Process:** Capture Engine (live capture on main thread), Parser (live path), Anonymizer, Packet Buffer, Filter Engine, BufferStatsThrottler
+- **Worker Thread:** File/simulated replay sources, CaptureController, Parser (file/simulated path)
 - **Renderer Process:** React UI with Zustand state management
 - **IPC Bridge:** Explicit contract via contextBridge with zod validation
 
@@ -171,7 +168,7 @@ NetVis requires elevated privileges to capture network packets. Each platform ha
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/shashwatt735/NetVis.git
 cd netvis
 
 # Install dependencies
@@ -217,15 +214,12 @@ npm test
 
 # Run tests in watch mode
 npm run test:watch
-
-# Run tests with coverage
-npm run test:coverage
 ```
 
 ### Test Coverage
 
-- **28 test files, 332 tests passing**
-- **Property-based tests:** Parser round-trip, anonymizer determinism, buffer invariants, filter engine, simulated replay, protocol distribution, timeline buckets, and more (100+ iterations each)
+- **50 test files** (22 main process, 27 renderer + setup/utils)
+- **Property-based tests:** Parser round-trip, anonymizer determinism, buffer invariants, filter engine, simulated replay, protocol distribution, timeline buckets, IP flow graph, OSI layer rendering, challenge activation/completion, and more (100+ iterations each)
 - **Unit tests:** Boundary conditions, persistence, validation, IPC handlers, bugfix verification, store actions
 
 ## 📚 Documentation
@@ -275,6 +269,14 @@ NetVis follows strict security principles:
 - **ARCH-04:** Anonymization in main process only
 - **ARCH-05:** Unidirectional data flow
 - **ARCH-06:** TypeScript strict mode
+- **ARCH-07:** One owner per request lifecycle
+- **ARCH-08:** One owner per renderer-visible push channel
+- **ARCH-09:** Packet_Buffer stores ParsedPacket in the privileged domain; only AnonPacket crosses IPC to the renderer
+- **ARCH-10:** Renderer-visible packet delivery only through `packet:batch` push channel
+- **ARCH-11:** Live capture, file import, and simulated replay are separate user-initiated modes with no silent fallback
+- **ARCH-12:** File path and target validation before PCAP operations
+- **ARCH-13:** Platform-specific privilege minimization
+- **ARCH-14:** Thread ownership: worker for file/simulated replay acquisition and parsing; main for live capture (`CapSource`), privileged operations, and IPC delivery; renderer for UI only
 
 All IPC payloads are validated with zod schemas before processing.
 
@@ -308,7 +310,7 @@ All contributions must:
 
 ## 📧 Contact
 
-[To be determined]
+[Shashwat Maurya](mailto:shwtm314@gmail.com)
 
 ---
 

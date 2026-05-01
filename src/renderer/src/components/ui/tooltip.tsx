@@ -55,14 +55,6 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow
-          className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]"
-          style={{
-            fill: 'var(--nv-bg-surface-2)',
-            stroke: 'var(--nv-border-emphasis)',
-            strokeWidth: 1
-          }}
-        />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )

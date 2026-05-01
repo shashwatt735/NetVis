@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type React from 'react'
 import { AppShell } from './components/AppShell'
-import { ChallengePanel } from './components/ChallengePanel'
 import { WelcomeScreen } from './components/WelcomeScreen'
 import { LoadingSplash } from './components/LoadingSplash'
 import { Toaster } from './components/ui/sonner'
@@ -106,15 +105,9 @@ function App(): React.JSX.Element {
   return (
     <>
       {/* Loading splash screen - shows during initial data load */}
-      {showSplash && (
-        <LoadingSplash
-          isReady={!isLoading}
-          onComplete={handleSplashComplete}
-        />
-      )}
+      {showSplash && <LoadingSplash isReady={!isLoading} onComplete={handleSplashComplete} />}
 
       <AppShell />
-      <ChallengePanel />
       <Toaster />
       {/* Req 19.1: show on first launch; Req 19.3: dismissed state persisted */}
       {!welcomeSeen && (

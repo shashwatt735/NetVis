@@ -46,14 +46,14 @@ const OSI_LAYERS: OsiLayerDef[] = [
 ]
 
 const PROTO_COLORS = {
-  TCP: '#3B82F6',
-  UDP: '#10B981',
-  ICMP: '#F59E0B',
-  DNS: '#8B5CF6',
-  ARP: '#EF4444',
-  IPv4: '#06B6D4',
-  IPv6: '#EC4899',
-  OTHER: '#6B7280',
+  TCP: '#4E9CE8',
+  UDP: '#9B7FE8',
+  ICMP: '#E8A030',
+  DNS: '#35B890',
+  ARP: '#D678A8',
+  IPv4: '#D4824A',
+  IPv6: '#4AB8D4',
+  OTHER: '#7A7A86',
 } as const
 
 type ProtoColorKey = keyof typeof PROTO_COLORS

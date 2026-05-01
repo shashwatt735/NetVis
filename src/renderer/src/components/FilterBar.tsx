@@ -55,7 +55,7 @@ export function FilterBar(): React.JSX.Element {
             type="text"
             value={filterExpression}
             onChange={handleChange}
-            placeholder="Filter: proto == TCP"
+            placeholder="proto == TCP"
             aria-label="Filter packets"
             aria-invalid={hasError}
             aria-describedby={hasError ? 'filter-error' : undefined}

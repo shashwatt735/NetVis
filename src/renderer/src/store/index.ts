@@ -8,8 +8,12 @@ import type {
   AnonPacket,
   BufferStats,
   CaptureStatus,
-  NetworkInterface
+  NetworkInterface,
+  Theme
 } from '../../../shared/capture-types'
+
+export type AppPage = 'capture' | 'learn' | 'challenges' | 'settings'
+export type InterfaceDetectionStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
 
 // ─── Store Shape ─────────────────────────────────────────────────────────────
 
@@ -24,6 +28,7 @@ interface NetVisStore {
   captureStatus: CaptureStatus
   interfaces: NetworkInterface[]
   activeInterface: string | null
+  interfaceDetectionStatus: InterfaceDetectionStatus
 
   // Filter
   filterExpression: string
@@ -31,7 +36,9 @@ interface NetVisStore {
   filteredPackets: AnonPacket[] // derived, recomputed on packets/filterExpression change
 
   // UI
-  theme: 'light' | 'dark' | 'system'
+  activePage: AppPage
+  previousPage: AppPage | null
+  theme: Theme
   focusVisualization: boolean
   welcomeSeen: boolean
 
@@ -41,6 +48,7 @@ interface NetVisStore {
   // Challenge
   activeChallengeId: string | null
   completedChallengeIds: string[]
+  challengeCompletion: { challengeId: string; packetId: string | null } | null
 
   // Actions
   addPacket(p: AnonPacket): void
@@ -51,11 +59,15 @@ interface NetVisStore {
   setCaptureStatus(status: CaptureStatus): void
   setInterfaces(interfaces: NetworkInterface[]): void
   setActiveInterface(iface: string | null): void
-  setTheme(theme: 'light' | 'dark' | 'system'): void
-  persistTheme(theme: 'light' | 'dark' | 'system'): Promise<void>
+  setInterfaceDetectionStatus(status: InterfaceDetectionStatus): void
+  setActivePage(page: AppPage): void
+  goBack(): void
+  setTheme(theme: Theme): void
+  persistTheme(theme: Theme): Promise<void>
   toggleFocusVisualization(): void
   activateChallenge(id: string | null): void
   completeChallenge(id: string): void
+  clearChallengeCompletion(): void
   setBufferStats(stats: BufferStats): void
   notifyBufferOverflow(dropped: number): void
   setWelcomeSeen(seen: boolean): void
@@ -82,7 +94,8 @@ async function applyFilterViaIpc(
   expression: string,
   allPackets: AnonPacket[],
   selectedPacketId: string | null,
-  set: (partial: Partial<NetVisStore>) => void
+  set: (partial: Partial<NetVisStore>) => void,
+  fallbackToAllOnFailure = true
 ): Promise<void> {
   // Capture generation at call time; discard result if superseded
   const generation = ++filterGeneration
@@ -120,7 +133,9 @@ async function applyFilterViaIpc(
   } catch {
     if (generation !== filterGeneration) return
     // IPC failure — degrade gracefully, show all packets
-    set({ filteredPackets: allPackets, filterError: null })
+    if (fallbackToAllOnFailure) {
+      set({ filteredPackets: allPackets, filterError: null })
+    }
   }
 }
 
@@ -135,15 +150,19 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
   captureStatus: { state: 'idle' },
   interfaces: [],
   activeInterface: null,
+  interfaceDetectionStatus: 'idle',
   filterExpression: '',
   filterError: null,
   filteredPackets: [],
+  activePage: 'capture',
+  previousPage: null,
   theme: 'system',
   focusVisualization: false,
   welcomeSeen: false,
   importResult: null,
   activeChallengeId: null,
   completedChallengeIds: [],
+  challengeCompletion: null,
 
   // Actions
   addPacket: (p: AnonPacket) => {
@@ -168,14 +187,12 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
 
       return { packets: newPackets, filteredPackets: newFilteredPackets }
     })
-    
+
     // If filter is active, trigger immediate re-evaluation (don't wait for debounce)
     // This ensures packets appear in real-time during capture
     const state = get()
     if (state.filterExpression.trim()) {
-      // Bump generation so any previous in-flight call is discarded (BUG-8)
-      filterGeneration++
-      void applyFilterViaIpc(state.filterExpression, state.packets, state.selectedPacketId, set)
+      void applyFilterViaIpc(state.filterExpression, state.packets, state.selectedPacketId, set, false)
     }
   },
 
@@ -184,7 +201,8 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
       packets: [],
       filteredPackets: [],
       selectedPacketId: null,
-      importResult: null
+      importResult: null,
+      challengeCompletion: null
     })
   },
 
@@ -215,8 +233,7 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
       let activeInterface = state.activeInterface
       if (status.state === 'active') {
         activeInterface = status.iface
-      } else if (status.state === 'error') {
-        // Only clear interface on error — preserve it on stopped/idle so user can restart
+      } else if (status.state === 'idle' || status.state === 'stopped' || status.state === 'error') {
         activeInterface = null
       }
       // Clear import result when a new capture session starts (BUG-2)
@@ -236,13 +253,30 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
     set({ activeInterface: iface })
   },
 
-  setTheme: (theme: 'light' | 'dark' | 'system') => {
+  setInterfaceDetectionStatus: (status: InterfaceDetectionStatus) => {
+    set({ interfaceDetectionStatus: status })
+  },
+
+  setActivePage: (page: AppPage) => {
+    set((state) => ({ previousPage: state.activePage, activePage: page }))
+  },
+
+  goBack: () => {
+    set((state) => {
+      if (state.previousPage) {
+        return { activePage: state.previousPage, previousPage: null }
+      }
+      return { activePage: 'capture', previousPage: null }
+    })
+  },
+
+  setTheme: (theme: Theme) => {
     set({ theme })
     // Apply theme to HTML element
     applyTheme(theme)
   },
 
-  persistTheme: async (theme: 'light' | 'dark' | 'system') => {
+  persistTheme: async (theme: Theme) => {
     set({ theme })
     applyTheme(theme)
     await window.electronAPI.setSettings({ theme })
@@ -253,19 +287,33 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
   },
 
   activateChallenge: (id: string | null) => {
-    set({ activeChallengeId: id })
+    set({ activeChallengeId: id, challengeCompletion: null })
   },
 
   completeChallenge: (id: string) => {
     set((state) => {
-      const completedChallengeIds = [...state.completedChallengeIds, id]
-      // Persist to settings store (GAP-4: completions were lost on restart)
-      void window.electronAPI.setSettings({ completedChallenges: completedChallengeIds })
+      const completedChallengeIds = state.completedChallengeIds.includes(id)
+        ? state.completedChallengeIds
+        : [...state.completedChallengeIds, id]
+
+      if (!state.completedChallengeIds.includes(id)) {
+        // Persist to settings store (GAP-4: completions were lost on restart)
+        void window.electronAPI?.setSettings?.({ completedChallenges: completedChallengeIds })
+      }
+
       return {
         completedChallengeIds,
-        activeChallengeId: null
+        activeChallengeId: null,
+        challengeCompletion: {
+          challengeId: id,
+          packetId: state.selectedPacketId
+        }
       }
     })
+  },
+
+  clearChallengeCompletion: () => {
+    set({ challengeCompletion: null })
   },
 
   setBufferStats: (stats: BufferStats) => {
@@ -291,21 +339,27 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
 
 // ─── Theme Application ───────────────────────────────────────────────────────
 
-function applyTheme(theme: 'light' | 'dark' | 'system'): void {
+function applyTheme(theme: Theme): void {
   const root = document.documentElement
 
-  if (theme === 'system') {
-    // Use OS preference
+  root.classList.remove('dark', 'warm-dark')
+
+  if (theme === 'dark') {
+    root.classList.add('dark')
+  } else if (theme === 'warm-dark') {
+    root.classList.add('warm-dark')
+  } else if (theme === 'system') {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     if (prefersDark) {
       root.classList.add('dark')
-    } else {
-      root.classList.remove('dark')
     }
-  } else if (theme === 'dark') {
-    root.classList.add('dark')
-  } else {
-    root.classList.remove('dark')
+  }
+
+  // Cache theme for flash-free startup (read by inline script in index.html)
+  try {
+    localStorage.setItem('nv-theme', theme)
+  } catch {
+    // localStorage may be unavailable in some environments
   }
 }
 

@@ -1,140 +1,238 @@
 /**
  * Challenge library for guided educational exercises.
- * Req 11.1, 11.2
+ * Challenges are intentionally lightweight: no points, streaks, or pressure.
  */
 
 import type { AnonPacket } from '../../../shared/capture-types'
+
+export type ChallengeDifficulty = 'beginner' | 'intermediate'
+export type ChallengeProtocol = 'TCP' | 'UDP' | 'DNS' | 'ICMP' | 'ARP' | 'OTHER' | 'ANY'
+
+export interface ChallengeCompletionCopy {
+  found: string
+  meaning: string
+}
 
 export interface Challenge {
   id: string
   title: string
   goal: string
   hint: string
-  successCriteria: (packets: AnonPacket[], filterExpression?: string) => boolean
+  difficulty: ChallengeDifficulty
+  protocol: ChallengeProtocol
+  estimatedMinutes: number
+  lookFor: string[]
+  initialFilter: string
+  completion: ChallengeCompletionCopy
+  listed?: boolean
+  successCriteria: (
+    packets: AnonPacket[],
+    filterExpression?: string,
+    selectedPacket?: AnonPacket | null
+  ) => boolean
 }
 
-/**
- * Challenge 1: Identify a TCP three-way handshake
- * Success: Find SYN, SYN-ACK, ACK sequence between same endpoints (non-consecutive)
- */
-function isTcpHandshake(packets: AnonPacket[]): boolean {
-  const tcpPackets = packets.filter((p) => p.protocol === 'TCP')
+function layerField(packet: AnonPacket, protocol: string, fieldNames: string[]): string {
+  const layer = packet.layers.find(
+    (candidate) => candidate.protocol.toLowerCase() === protocol.toLowerCase()
+  )
+  if (!layer) return ''
+
+  for (const field of layer.fields) {
+    const name = field.name.toLowerCase()
+    const label = field.label.toLowerCase()
+    if (fieldNames.some((candidate) => name.includes(candidate) || label.includes(candidate))) {
+      return String(field.value)
+    }
+  }
+
+  return ''
+}
+
+function packetFlags(packet: AnonPacket): string {
+  return layerField(packet, 'TCP', ['flag']).toUpperCase()
+}
+
+function packetHasFlag(packet: AnonPacket, flag: string): boolean {
+  return packetFlags(packet).includes(flag)
+}
+
+function packetPort(packet: AnonPacket, names: string[]): string {
+  return layerField(packet, 'TCP', names) || layerField(packet, 'UDP', names)
+}
+
+function packetDnsFlags(packet: AnonPacket): string {
+  return layerField(packet, 'DNS', ['flag', 'qr', 'response']).toLowerCase()
+}
+
+function packetDnsId(packet: AnonPacket): string {
+  return layerField(packet, 'DNS', ['transaction', 'id'])
+}
+
+function packetIcmpType(packet: AnonPacket): string {
+  return layerField(packet, 'ICMP', ['type']).toLowerCase()
+}
+
+function packetArpOpcode(packet: AnonPacket): string {
+  return layerField(packet, 'ARP', ['opcode', 'operation']).toLowerCase()
+}
+
+function tcpConversationKey(packet: AnonPacket): string {
+  const srcPort = packetPort(packet, ['src', 'source'])
+  const dstPort = packetPort(packet, ['dst', 'dest', 'destination'])
+  const forward = `${packet.srcAddress}:${srcPort}->${packet.dstAddress}:${dstPort}`
+  const reverse = `${packet.dstAddress}:${dstPort}->${packet.srcAddress}:${srcPort}`
+  return [forward, reverse].sort().join('|')
+}
+
+function isTcpSyn(packet: AnonPacket): boolean {
+  const flags = packetFlags(packet)
+  return flags.includes('SYN') && !flags.includes('ACK')
+}
+
+function isTcpSynAck(packet: AnonPacket): boolean {
+  const flags = packetFlags(packet)
+  return flags.includes('SYN') && flags.includes('ACK')
+}
+
+function isTcpAckOnly(packet: AnonPacket): boolean {
+  const flags = packetFlags(packet)
+  return (
+    flags.includes('ACK') &&
+    !flags.includes('SYN') &&
+    !flags.includes('FIN') &&
+    !flags.includes('RST')
+  )
+}
+
+function isDnsQueryPacket(packet: AnonPacket): boolean {
+  if (packet.protocol !== 'DNS') return false
+  const flags = packetDnsFlags(packet)
+  return !flags.includes('response')
+}
+
+function isDnsResponsePacket(packet: AnonPacket): boolean {
+  if (packet.protocol !== 'DNS') return false
+  return packetDnsFlags(packet).includes('response')
+}
+
+function isIcmpEchoRequest(packet: AnonPacket): boolean {
+  if (packet.protocol !== 'ICMP') return false
+  const type = packetIcmpType(packet)
+  return type === '8' || type.includes('echo request')
+}
+
+function isIcmpEchoReply(packet: AnonPacket): boolean {
+  if (packet.protocol !== 'ICMP') return false
+  const type = packetIcmpType(packet)
+  return type === '0' || type.includes('echo reply')
+}
+
+function isArpRequest(packet: AnonPacket): boolean {
+  if (packet.protocol !== 'ARP') return false
+  const opcode = packetArpOpcode(packet)
+  return opcode.includes('request') || opcode.includes('who')
+}
+
+function isArpReply(packet: AnonPacket): boolean {
+  if (packet.protocol !== 'ARP') return false
+  const opcode = packetArpOpcode(packet)
+  return opcode.includes('reply') || opcode.includes('is at')
+}
+
+function hasTcpHandshake(packets: AnonPacket[]): boolean {
+  const tcpPackets = packets.filter((packet) => packet.protocol === 'TCP')
 
   for (let i = 0; i < tcpPackets.length; i++) {
-    const p1 = tcpPackets[i]!
-    const tcp1 = p1.layers.find((l) => l.protocol === 'TCP')
-    if (!tcp1) continue
-    const flags1 = tcp1.fields.find((f) => f.name === 'flags')?.value as string | undefined
-    if (!flags1) continue
+    const syn = tcpPackets[i]!
+    if (!isTcpSyn(syn)) continue
 
-    // p1 must be SYN (no ACK)
-    if (!flags1.includes('SYN') || flags1.includes('ACK')) continue
-
-    // Look for SYN-ACK from the reverse direction after p1
     for (let j = i + 1; j < tcpPackets.length; j++) {
-      const p2 = tcpPackets[j]!
-      const tcp2 = p2.layers.find((l) => l.protocol === 'TCP')
-      if (!tcp2) continue
-      const flags2 = tcp2.fields.find((f) => f.name === 'flags')?.value as string | undefined
-      if (!flags2) continue
+      const synAck = tcpPackets[j]!
+      if (!isTcpSynAck(synAck)) continue
+      if (synAck.srcAddress !== syn.dstAddress || synAck.dstAddress !== syn.srcAddress) continue
 
-      // p2 must be SYN-ACK from reversed direction
-      if (!flags2.includes('SYN') || !flags2.includes('ACK')) continue
-      if (p2.srcAddress !== p1.dstAddress || p2.dstAddress !== p1.srcAddress) continue
-
-      // Look for ACK from original direction after p2
       for (let k = j + 1; k < tcpPackets.length; k++) {
-        const p3 = tcpPackets[k]!
-        const tcp3 = p3.layers.find((l) => l.protocol === 'TCP')
-        if (!tcp3) continue
-        const flags3 = tcp3.fields.find((f) => f.name === 'flags')?.value as string | undefined
-        if (!flags3) continue
-
-        // p3 must be ACK (no SYN) from original direction
-        if (!flags3.includes('ACK') || flags3.includes('SYN')) continue
-        if (p3.srcAddress !== p1.srcAddress || p3.dstAddress !== p1.dstAddress) continue
-
-        return true
+        const ack = tcpPackets[k]!
+        if (!isTcpAckOnly(ack)) continue
+        if (ack.srcAddress === syn.srcAddress && ack.dstAddress === syn.dstAddress) return true
       }
     }
   }
+
   return false
 }
 
-/**
- * Challenge 2: Identify a DNS query/response pair
- * Success: Find DNS query followed by DNS response (non-consecutive)
- */
-function isDnsQueryResponse(packets: AnonPacket[]): boolean {
-  const dnsPackets = packets.filter((p) => p.protocol === 'DNS')
+function hasDnsQueryResponse(packets: AnonPacket[]): boolean {
+  const queries = packets.filter(isDnsQueryPacket)
+  const responses = packets.filter(isDnsResponsePacket)
 
-  let hasQuery = false
-  let hasResponse = false
+  if (queries.length === 0 || responses.length === 0) return false
 
-  for (const p of dnsPackets) {
-    const dns = p.layers.find((l) => l.protocol === 'DNS')
-    if (!dns) continue
-    const flags = dns.fields.find((f) => f.name === 'flags')?.value as string | undefined
-    if (!flags) continue
+  return queries.some((query) => {
+    const queryId = packetDnsId(query)
+    return responses.some((response) => {
+      const responseId = packetDnsId(response)
+      const reversed =
+        query.srcAddress === response.dstAddress && query.dstAddress === response.srcAddress
+      return reversed && (!queryId || !responseId || queryId === responseId)
+    })
+  })
+}
 
-    if (flags.includes('Query')) hasQuery = true
-    if (flags.includes('Response')) hasResponse = true
+function hasIcmpEchoPair(packets: AnonPacket[]): boolean {
+  return packets.some(isIcmpEchoRequest) && packets.some(isIcmpEchoReply)
+}
 
-    if (hasQuery && hasResponse) return true
+function hasArpRequestReply(packets: AnonPacket[]): boolean {
+  return packets.some(isArpRequest) && packets.some(isArpReply)
+}
+
+function hasTcpConnectionWithFin(packets: AnonPacket[]): boolean {
+  const byConversation = new Map<string, AnonPacket[]>()
+  for (const packet of packets) {
+    if (packet.protocol !== 'TCP') continue
+    const key = tcpConversationKey(packet)
+    byConversation.set(key, [...(byConversation.get(key) ?? []), packet])
   }
-  return false
-}
 
-/**
- * Challenge 3: Identify an ICMP echo request/reply pair
- * Success: Find ICMP echo request (type 8) and echo reply (type 0)
- */
-function isIcmpEchoPair(packets: AnonPacket[]): boolean {
-  let hasRequest = false
-  let hasReply = false
-
-  for (const p of packets) {
-    if (p.protocol !== 'ICMP') continue
-
-    const icmp = p.layers.find((l) => l.protocol === 'ICMP')
-    if (!icmp) continue
-
-    const type = icmp.fields.find((f) => f.name === 'type')?.value
-    if (type === 8 || type === '8') hasRequest = true
-    if (type === 0 || type === '0') hasReply = true
-
-    if (hasRequest && hasReply) return true
+  for (const conversation of byConversation.values()) {
+    const hasSyn = conversation.some(isTcpSyn)
+    const hasFin = conversation.some((packet) => packetHasFlag(packet, 'FIN'))
+    if (hasSyn && hasFin) return true
   }
+
   return false
 }
 
-/**
- * Challenge 4: Filter traffic by port number
- * Success: User has applied a filter expression containing "port"
- */
-function isFilterByPort(packets: AnonPacket[], filterExpression?: string): boolean {
-  if (!filterExpression) return false
-  return filterExpression.toLowerCase().includes('port') && packets.length > 0
+function hasRetransmission(packets: AnonPacket[]): boolean {
+  const seen = new Set<string>()
+
+  for (const packet of packets) {
+    if (packet.protocol !== 'TCP') continue
+    const sequence = layerField(packet, 'TCP', ['seq'])
+    if (!sequence) continue
+
+    const key = `${packet.srcAddress}->${packet.dstAddress}:${packetPort(packet, ['src', 'source'])}:${packetPort(packet, ['dst', 'dest', 'destination'])}:${sequence}`
+    if (seen.has(key)) return true
+    seen.add(key)
+  }
+
+  return false
 }
 
-/**
- * Challenge 5: Compare packet lengths across protocols
- * Success: Have packets from at least 3 different protocols with varying lengths
- */
-function isComparePacketLengths(packets: AnonPacket[]): boolean {
+function hasThreeProtocolsWithLengthVariation(packets: AnonPacket[]): boolean {
   const protocolLengths = new Map<string, Set<number>>()
 
-  for (const p of packets) {
-    if (!protocolLengths.has(p.protocol)) {
-      protocolLengths.set(p.protocol, new Set())
+  for (const packet of packets) {
+    if (!protocolLengths.has(packet.protocol)) {
+      protocolLengths.set(packet.protocol, new Set())
     }
-    protocolLengths.get(p.protocol)!.add(p.length)
+    protocolLengths.get(packet.protocol)!.add(packet.length)
   }
 
-  // Need at least 3 protocols
   if (protocolLengths.size < 3) return false
 
-  // Each protocol should have varying lengths (at least 2 different lengths)
   let protocolsWithVariation = 0
   for (const lengths of protocolLengths.values()) {
     if (lengths.size >= 2) protocolsWithVariation++
@@ -143,51 +241,227 @@ function isComparePacketLengths(packets: AnonPacket[]): boolean {
   return protocolsWithVariation >= 2
 }
 
-/**
- * Challenge library — 5 guided challenges covering core networking concepts.
- * Req 11.1
- */
+function hasProtocolFilter(filterExpression?: string): boolean {
+  const normalized = (filterExpression ?? '').toLowerCase()
+  return (
+    normalized.includes('proto') ||
+    ['tcp', 'udp', 'dns', 'icmp', 'arp'].some((proto) => normalized === proto)
+  )
+}
+
+function hasPortFilter(filterExpression?: string): boolean {
+  return (filterExpression ?? '').toLowerCase().includes('port')
+}
+
 export const CHALLENGES: Challenge[] = [
   {
-    id: 'tcp-handshake',
-    title: 'TCP Three-Way Handshake',
-    goal: 'Identify a complete TCP three-way handshake (SYN → SYN-ACK → ACK) in the packet list.',
-    hint: 'Look for three consecutive TCP packets with flags: SYN, SYN+ACK, and ACK. The source and destination addresses should be reversed in the SYN-ACK packet.',
-    successCriteria: isTcpHandshake
+    id: 'first-capture',
+    title: 'start your first capture',
+    goal: 'Start a capture and collect at least one packet.',
+    hint: 'Click start capture, then open a website or another app that uses the network.',
+    difficulty: 'beginner',
+    protocol: 'ANY',
+    estimatedMinutes: 2,
+    lookFor: ['packets appearing in the list', 'live status dot', 'packet count increasing'],
+    initialFilter: '',
+    completion: {
+      found: 'you captured your first packet.',
+      meaning: 'NetVis is now showing real traffic from your machine.'
+    },
+    successCriteria: (packets) => packets.length > 0
   },
   {
-    id: 'dns-query-response',
-    title: 'DNS Query and Response',
-    goal: 'Find a DNS query followed by its corresponding response.',
-    hint: 'DNS queries and responses both use UDP port 53. Look for a query packet followed by a response packet with matching transaction IDs.',
-    successCriteria: isDnsQueryResponse
+    id: 'dns-query',
+    title: 'find a dns query',
+    goal: 'Spot a DNS packet that asks for a domain name.',
+    hint: 'Look for the DNS badge, then look for a QUERY role badge in the packet list.',
+    difficulty: 'beginner',
+    protocol: 'DNS',
+    estimatedMinutes: 2,
+    lookFor: ['DNS badge', 'QUERY role badge', 'destination DNS server'],
+    initialFilter: 'proto == DNS',
+    completion: {
+      found: 'you identified a DNS QUERY packet.',
+      meaning: 'your computer asked a DNS server to translate a domain name into an IP address.'
+    },
+    successCriteria: (packets, _filter, selectedPacket) =>
+      selectedPacket ? isDnsQueryPacket(selectedPacket) : packets.some(isDnsQueryPacket)
+  },
+  {
+    id: 'tcp-handshake',
+    title: 'find a tcp handshake',
+    goal: 'Identify a TCP three-way handshake: SYN, SYN-ACK, then ACK.',
+    hint: 'Look for three TCP packets between the same endpoints. The middle packet should reverse source and destination.',
+    difficulty: 'beginner',
+    protocol: 'TCP',
+    estimatedMinutes: 3,
+    lookFor: ['SYN role badge', 'SYN-ACK role badge', 'ACK role badge'],
+    initialFilter: 'proto == TCP',
+    completion: {
+      found: 'you found a TCP handshake.',
+      meaning: 'the client and server agreed that a reliable connection could begin.'
+    },
+    successCriteria: hasTcpHandshake
   },
   {
     id: 'icmp-echo-pair',
-    title: 'ICMP Echo Request and Reply',
-    goal: 'Identify an ICMP echo request (ping) and its corresponding reply.',
-    hint: 'ICMP echo requests have type 8, and echo replies have type 0. Look for both types in your packet list.',
-    successCriteria: isIcmpEchoPair
+    title: 'identify a ping',
+    goal: 'Find an ICMP echo request and echo reply pair.',
+    hint: 'Look for ICMP packets with PING and REPLY role badges close together.',
+    difficulty: 'beginner',
+    protocol: 'ICMP',
+    estimatedMinutes: 2,
+    lookFor: ['ICMP badge', 'PING role badge', 'REPLY role badge'],
+    initialFilter: 'proto == ICMP',
+    completion: {
+      found: 'you found an ICMP ping round trip.',
+      meaning: 'one packet checked reachability and the reply confirmed the destination answered.'
+    },
+    successCriteria: hasIcmpEchoPair
   },
   {
-    id: 'filter-by-port',
-    title: 'Filter Traffic by Port',
-    goal: 'Use the filter bar to show only traffic on a specific port (e.g., port == 80 or port == 443).',
-    hint: 'Type a filter expression like "port == 80" in the filter bar at the top of the window. Press Enter to apply the filter.',
-    successCriteria: isFilterByPort
+    id: 'filter-one-protocol',
+    title: 'use a filter to isolate one protocol',
+    goal: 'Use the filter bar or protocol chart to focus on one protocol.',
+    hint: 'Click a protocol row in the chart or type a filter like proto == DNS.',
+    difficulty: 'beginner',
+    protocol: 'ANY',
+    estimatedMinutes: 2,
+    lookFor: ['filter text', 'dimmed non-matching rows', 'one protocol emphasized'],
+    initialFilter: 'proto == DNS',
+    completion: {
+      found: 'you filtered the capture to one protocol.',
+      meaning: 'filters help you study busy traffic without losing the larger capture context.'
+    },
+    successCriteria: (packets, filterExpression) =>
+      packets.length > 0 && hasProtocolFilter(filterExpression)
+  },
+  {
+    id: 'largest-packet',
+    title: 'find the largest packet',
+    goal: 'Select the largest packet currently in the capture.',
+    hint: 'Sort with your eyes for the largest length value, then select that row.',
+    difficulty: 'beginner',
+    protocol: 'ANY',
+    estimatedMinutes: 2,
+    lookFor: ['length column', 'largest byte value', 'selected row'],
+    initialFilter: '',
+    completion: {
+      found: 'you selected the largest packet in the current capture.',
+      meaning: 'large packets often carry more payload data than setup or control packets.'
+    },
+    successCriteria: (packets, _filter, selectedPacket) => {
+      if (!selectedPacket || packets.length === 0) return false
+      const largest = Math.max(...packets.map((packet) => packet.length))
+      return selectedPacket.length === largest
+    }
+  },
+  {
+    id: 'dns-query-response',
+    title: 'identify a complete dns transaction',
+    goal: 'Find a DNS query and the response that belongs to it.',
+    hint: 'Use DNS filtering. Matching query and response packets usually reverse source and destination and share a transaction ID.',
+    difficulty: 'intermediate',
+    protocol: 'DNS',
+    estimatedMinutes: 4,
+    lookFor: ['QUERY role badge', 'RESPONSE role badge', 'matching transaction ID'],
+    initialFilter: 'proto == DNS',
+    completion: {
+      found: 'you identified a DNS query and response pair.',
+      meaning:
+        'the resolver answered the name lookup, so the next connection can use the returned address.'
+    },
+    successCriteria: hasDnsQueryResponse
+  },
+  {
+    id: 'trace-tcp-connection',
+    title: 'trace a tcp connection',
+    goal: 'Follow a TCP connection from SYN through connection close.',
+    hint: 'Filter to TCP and look for the same endpoints from SYN to FIN.',
+    difficulty: 'intermediate',
+    protocol: 'TCP',
+    estimatedMinutes: 5,
+    lookFor: ['SYN', 'data packets', 'FIN or FIN-ACK'],
+    initialFilter: 'proto == TCP',
+    completion: {
+      found: 'you traced a TCP connection from start to close.',
+      meaning: 'TCP conversations have a lifecycle: open, exchange data, then close.'
+    },
+    successCriteria: hasTcpConnectionWithFin
+  },
+  {
+    id: 'arp-request-reply',
+    title: 'find an arp request and reply',
+    goal: 'Find an ARP request and the ARP reply that answers it.',
+    hint: 'Look for WHO HAS followed by IS AT on your local network.',
+    difficulty: 'intermediate',
+    protocol: 'ARP',
+    estimatedMinutes: 4,
+    lookFor: ['WHO HAS role badge', 'IS AT role badge', 'same target address'],
+    initialFilter: 'proto == ARP',
+    completion: {
+      found: 'you found an ARP request and reply.',
+      meaning: 'a device asked for a local hardware address and another device answered.'
+    },
+    successCriteria: hasArpRequestReply
   },
   {
     id: 'compare-packet-lengths',
-    title: 'Compare Packet Lengths',
-    goal: 'Observe packets from at least 3 different protocols and notice how their lengths vary.',
-    hint: 'Different protocols have different header sizes and payload requirements. TCP packets are often larger than UDP, and ICMP packets are typically smaller.',
-    successCriteria: isComparePacketLengths
+    title: 'compare packet sizes',
+    goal: 'Compare packet lengths across at least three protocols.',
+    hint: 'Use the length column and protocol chart. Control packets are often small; data packets are usually larger.',
+    difficulty: 'intermediate',
+    protocol: 'ANY',
+    estimatedMinutes: 4,
+    lookFor: ['three protocols', 'different length values', 'largest packet'],
+    initialFilter: '',
+    completion: {
+      found: 'you compared packet sizes across protocols.',
+      meaning:
+        'packet size gives a quick clue about whether traffic is setup, control, or data-heavy.'
+    },
+    successCriteria: hasThreeProtocolsWithLengthVariation
+  },
+  {
+    id: 'spot-retransmission',
+    title: 'spot a retransmission',
+    goal: 'Find repeated TCP sequence numbers in the same conversation.',
+    hint: 'A retransmission often repeats the same sequence number when a segment needs to be sent again.',
+    difficulty: 'intermediate',
+    protocol: 'TCP',
+    estimatedMinutes: 5,
+    lookFor: ['TCP badge', 'same sequence number', 'same endpoints'],
+    initialFilter: 'proto == TCP',
+    completion: {
+      found: 'you spotted a repeated TCP sequence number.',
+      meaning: 'the sender appears to have sent the same part of the byte stream again.'
+    },
+    successCriteria: hasRetransmission
+  },
+  {
+    id: 'filter-by-port',
+    title: 'filter traffic by port',
+    goal: 'Use the filter bar to show only traffic on a specific port.',
+    hint: 'Type a filter expression like port == 80 or port == 443.',
+    difficulty: 'intermediate',
+    protocol: 'ANY',
+    estimatedMinutes: 3,
+    lookFor: ['port filter', 'matching rows', 'service port'],
+    initialFilter: 'port == 443',
+    listed: false,
+    completion: {
+      found: 'you filtered packets by port.',
+      meaning: 'ports identify the service or temporary application slot involved in a packet.'
+    },
+    successCriteria: (packets, filterExpression) =>
+      packets.length > 0 && hasPortFilter(filterExpression)
   }
 ]
 
-/**
- * Get a challenge by ID.
- */
 export function getChallengeById(id: string): Challenge | undefined {
-  return CHALLENGES.find((c) => c.id === id)
+  return CHALLENGES.find((challenge) => challenge.id === id)
+}
+
+export function getListedChallenges(): Challenge[] {
+  return CHALLENGES.filter((challenge) => challenge.listed !== false)
 }

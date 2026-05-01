@@ -38,6 +38,27 @@ function interfacePriority(iface: NetworkInterface): number {
   return 2
 }
 
+function interfaceKind(iface: NetworkInterface): string {
+  const label = `${iface.displayName} ${iface.name}`.toLowerCase()
+  if (label.includes('loopback') || label.includes('npf_loopback') || label === 'lo')
+    return 'Loopback'
+  if (/\bwi-?fi\b|\bwlan\b/.test(label)) return 'Wi-Fi'
+  if (/\bethernet\b|\blan\b/.test(label)) return 'Ethernet'
+  if (
+    label.includes('virtual') ||
+    label.includes('vmware') ||
+    label.includes('hyper-v') ||
+    label.includes('docker') ||
+    label.includes('vbox') ||
+    label.includes('tunnel') ||
+    label.includes('teredo')
+  ) {
+    return 'Virtual'
+  }
+  if (label.includes('bluetooth')) return 'Bluetooth'
+  return 'Interface'
+}
+
 function sortInterfacesForSelection(interfaces: NetworkInterface[]): NetworkInterface[] {
   return [...interfaces].sort((a, b) => {
     const priorityDiff = interfacePriority(a) - interfacePriority(b)
@@ -62,6 +83,7 @@ export function InterfaceSelector(): React.JSX.Element {
   const captureStatus = useNetVisStore((s) => s.captureStatus)
   const setInterfaces = useNetVisStore((s) => s.setInterfaces)
   const setActiveInterface = useNetVisStore((s) => s.setActiveInterface)
+  const setInterfaceDetectionStatus = useNetVisStore((s) => s.setInterfaceDetectionStatus)
   const [enumError, setEnumError] = useState<string | null>(null)
   const [platformHint, setPlatformHint] = useState<string | null>(null)
   const [isRetrying, setIsRetrying] = useState(false)
@@ -84,6 +106,7 @@ export function InterfaceSelector(): React.JSX.Element {
     // safe to call concurrently with pcap_dispatch and will crash the worker process.
     if (useNetVisStore.getState().captureStatus.state === 'active') return
 
+    setInterfaceDetectionStatus('loading')
     window.electronAPI
       .getInterfaces()
       .then((result) => {
@@ -94,6 +117,7 @@ export function InterfaceSelector(): React.JSX.Element {
           setEnumError(null)
           setPlatformHint(null)
           setInterfaces(sorted)
+          setInterfaceDetectionStatus(sorted.length > 0 ? 'ready' : 'unavailable')
           if (sorted.length === 0) {
             setActiveInterface(null)
           }
@@ -102,6 +126,7 @@ export function InterfaceSelector(): React.JSX.Element {
           setActiveInterface(null)
           setEnumError(result.error)
           setPlatformHint(result.platformHint ?? null)
+          setInterfaceDetectionStatus('unavailable')
           showUnavailableToast(result.error, result.platformHint ?? null)
           console.error('Interface enumeration failed:', result.error)
         }
@@ -114,6 +139,7 @@ export function InterfaceSelector(): React.JSX.Element {
         const message = err instanceof Error ? err.message : 'Unknown error'
         setEnumError(message)
         setPlatformHint(null)
+        setInterfaceDetectionStatus('unavailable')
         showUnavailableToast(message)
         console.error('Failed to enumerate interfaces:', err)
       })
@@ -126,7 +152,7 @@ export function InterfaceSelector(): React.JSX.Element {
       cancelled.value = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setActiveInterface, setInterfaces])
+  }, [setActiveInterface, setInterfaces, setInterfaceDetectionStatus])
 
   useEffect(() => {
     if (
@@ -147,6 +173,7 @@ export function InterfaceSelector(): React.JSX.Element {
     setIsRetrying(true)
     setEnumError(null)
     setPlatformHint(null)
+    setInterfaceDetectionStatus('loading')
     try {
       const result = await window.electronAPI.getInterfaces()
       if (result.ok) {
@@ -154,31 +181,36 @@ export function InterfaceSelector(): React.JSX.Element {
         setEnumError(null)
         setPlatformHint(null)
         setInterfaces(sorted)
+        setInterfaceDetectionStatus(sorted.length > 0 ? 'ready' : 'unavailable')
         if (sorted.length > 0) {
           toast.success('Interfaces found', {
             description: `${sorted.length} network interface${sorted.length > 1 ? 's' : ''} available.`
           })
+        } else {
+          setActiveInterface(null)
         }
       } else {
         setInterfaces([])
         setActiveInterface(null)
         setEnumError(result.error)
         setPlatformHint(result.platformHint ?? null)
+        setInterfaceDetectionStatus('unavailable')
         showUnavailableToast(result.error, result.platformHint ?? null)
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       setEnumError(message)
+      setInterfaceDetectionStatus('unavailable')
       showUnavailableToast(message)
     } finally {
       setIsRetrying(false)
     }
   }
 
-  const recommendedInterface = pickRecommendedInterface(interfaces)
-
   const selectedValue =
     activeInterface ?? (captureStatus.state === 'active' ? captureStatus.iface : undefined)
+  const recommendedInterface = pickRecommendedInterface(interfaces)
+  const selectedInterface = interfaces.find((iface) => iface.name === selectedValue)
 
   if (enumError !== null) {
     return (
@@ -191,7 +223,7 @@ export function InterfaceSelector(): React.JSX.Element {
           backgroundColor: 'rgba(207, 34, 46, 0.08)',
           border: '1px solid rgba(207, 34, 46, 0.3)',
           borderRadius: 'var(--nv-radius-md)',
-          maxWidth: 320,
+          maxWidth: 240,
           minWidth: 0
         }}
         role="alert"
@@ -278,7 +310,13 @@ export function InterfaceSelector(): React.JSX.Element {
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4
+      }}
+    >
       <Select
         value={selectedValue ?? ''}
         onValueChange={(val) => {
@@ -288,13 +326,28 @@ export function InterfaceSelector(): React.JSX.Element {
       >
         <SelectTrigger
           size="sm"
-          className="w-52 font-mono"
+          className="font-mono"
           aria-label="Select network interface"
           data-help-id="interface-selector"
+          style={{
+            width: 160,
+            maxWidth: 160,
+            borderColor: 'var(--nv-border-subtle)',
+            backgroundColor: 'var(--nv-bg-base)',
+            fontSize: 12,
+            fontFamily: 'var(--font-ui)',
+            paddingLeft: 10
+          }}
         >
-          <SelectValue placeholder="Select interface..." />
+          <SelectValue placeholder="Select interface…">
+            {selectedInterface
+              ? selectedInterface.displayName
+              : selectedValue
+                ? selectedValue
+                : undefined}
+          </SelectValue>
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent style={{ minWidth: 360, maxWidth: 400 }}>
           {interfaces.length === 0 ? (
             <SelectItem value="__none__" disabled>
               No interfaces found
@@ -304,7 +357,7 @@ export function InterfaceSelector(): React.JSX.Element {
               const isRecommended = iface.name === recommendedInterface
               return (
                 <SelectItem key={iface.name} value={iface.name}>
-                  <span className="flex min-w-0 items-center gap-2">
+                  <span className="flex min-w-0 items-center gap-3" style={{ padding: '6px 0 6px 8px', width: '100%' }}>
                     <span
                       style={{
                         width: 6,
@@ -316,33 +369,53 @@ export function InterfaceSelector(): React.JSX.Element {
                           : 'var(--nv-text-tertiary)'
                       }}
                     />
-                    <span className="min-w-0">
+                    <span className="min-w-0" style={{ flex: 1 }}>
                       <span
                         style={{
                           display: 'block',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: 'var(--nv-text-primary)',
+                          lineHeight: 1.3
                         }}
+                        title={iface.displayName}
                       >
                         {iface.displayName}
-                        {isRecommended ? ' (recommended)' : ''}
                       </span>
-                      {iface.displayName !== iface.name && (
+                      <span style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                         <span
                           style={{
-                            display: 'block',
-                            maxWidth: 280,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 11,
-                            color: 'var(--nv-text-tertiary)'
+                            fontSize: 10,
+                            color: 'var(--nv-text-secondary)',
+                            border: '1px solid var(--nv-border-subtle)',
+                            borderRadius: 'var(--nv-radius-sm)',
+                            padding: '2px 6px',
+                            fontWeight: 500,
+                            lineHeight: 1
                           }}
                         >
-                          {iface.name}
+                          {interfaceKind(iface)}
                         </span>
-                      )}
+                        {isRecommended && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: 'var(--proto-dns)',
+                              border: '1px solid var(--proto-dns-border)',
+                              borderRadius: 'var(--nv-radius-sm)',
+                              padding: '2px 6px',
+                              backgroundColor: 'var(--proto-dns-dim)',
+                              fontWeight: 500,
+                              lineHeight: 1
+                            }}
+                          >
+                            Recommended
+                          </span>
+                        )}
+                      </span>
                     </span>
                   </span>
                 </SelectItem>
@@ -355,4 +428,3 @@ export function InterfaceSelector(): React.JSX.Element {
     </div>
   )
 }
-

@@ -18,7 +18,7 @@ function Switch({ className, style, ...props }: React.ComponentProps<typeof Swit
       onFocus={(e) => {
         e.currentTarget.style.outline = '2px solid var(--proto-tcp)'
         e.currentTarget.style.outlineOffset = '2px'
-        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.5)'
+        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(78, 156, 232, 0.5)'
       }}
       onBlur={(e) => {
         e.currentTarget.style.outline = 'none'

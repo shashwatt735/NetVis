@@ -164,7 +164,7 @@ describe('IPC Input Sanitization (P17)', () => {
   it('SettingsPatchSchema rejects invalid theme values', () => {
     fc.assert(
       fc.property(
-        fc.string().filter((s) => s !== 'light' && s !== 'dark' && s !== 'system'),
+        fc.string().filter((s) => !['light', 'dark', 'warm-dark', 'system'].includes(s)),
         (invalidTheme) => {
           expect(() => validateOrThrow(SettingsPatchSchema, { theme: invalidTheme })).toThrow()
         }
@@ -178,7 +178,7 @@ describe('IPC Input Sanitization (P17)', () => {
    */
   it('SettingsPatchSchema accepts valid theme values', () => {
     fc.assert(
-      fc.property(fc.constantFrom('light', 'dark', 'system'), (theme) => {
+      fc.property(fc.constantFrom('light', 'dark', 'warm-dark', 'system'), (theme) => {
         const result = validateOrThrow(SettingsPatchSchema, { theme })
         expect(result.theme).toBe(theme)
       }),
@@ -225,7 +225,7 @@ describe('IPC Input Sanitization (P17)', () => {
         fc.record(
           {
             bufferCapacity: fc.option(fc.integer({ min: 1000, max: 100000 }), { nil: undefined }),
-            theme: fc.option(fc.constantFrom('light', 'dark', 'system'), { nil: undefined }),
+            theme: fc.option(fc.constantFrom('light', 'dark', 'warm-dark', 'system'), { nil: undefined }),
             welcomeSeen: fc.option(fc.boolean(), { nil: undefined }),
             completedChallenges: fc.option(fc.array(fc.string()), { nil: undefined }),
             reducedMotion: fc.option(fc.boolean(), { nil: undefined })

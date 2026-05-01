@@ -1,6 +1,6 @@
 # Project Design
 
-**Last Modified:** 2026-04-17
+**Last Modified:** 2026-04-27
 
 → **Full Architecture:** See `ARCHITECTURE.md`  
 → **Requirements:** See `.kiro/specs/netvis-core/requirements.md`
@@ -41,9 +41,37 @@ Capture → Parser → Buffer → [IPC boundary: Anonymizer] → IPC → Rendere
 
 All source files use TypeScript strict mode for maximum type safety.
 
----
+### ARCH-07: One Owner Per Request Lifecycle
 
-## Process Architecture
+One owner per request lifecycle: timeout registration, listener registration, cleanup, and completion belong to the same subsystem.
+
+### ARCH-08: One Owner Per Push Channel
+
+Each renderer-visible push channel has exactly one authoritative emitter. Only `IpcBatcher` emits `packet:batch`.
+
+### ARCH-09: PacketBuffer Storage Invariant
+
+`Packet_Buffer` stores `ParsedPacket` in the privileged domain; only `AnonPacket` crosses IPC to the renderer.
+
+### ARCH-10: Authoritative Packet Push Channel
+
+Renderer-visible packet delivery uses `packet:batch` as the sole authoritative push channel.
+
+### ARCH-11: Separate Capture Modes
+
+Live capture, file import, and simulated replay are separate user-initiated modes with no silent fallback.
+
+### ARCH-12: File Path Validation
+
+All file paths validated before PCAP operations (FILE-SEC-01).
+
+### ARCH-13: Platform-Specific Privilege Minimization
+
+Linux: `setcap`; Windows: Npcap Users group; macOS: `sudo` or Full Disk Access.
+
+### ARCH-14: Thread Ownership
+
+Worker owns file/simulated acquisition and parsing. Main owns live capture (`CapSource`), privileged operations, and IPC delivery. Renderer owns UI only.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -73,12 +101,13 @@ All source files use TypeScript strict mode for maximum type safety.
 
 ### Capture Engine
 
-- **CapSource:** Live capture via libpcap/Npcap
-- **PcapFileSource:** Streaming PCAP file reader
-- **SimulatedReplaySource:** Replay with speed control (0.5×-5×)
-- **CaptureController:** State machine (idle → live/file/simulated → idle)
+- **CapSource:** Live capture via libpcap/Npcap — **runs on main thread** (not worker) for Npcap/Windows native thread safety
+- **PcapFileSource:** Streaming PCAP file reader (worker thread)
+- **SimulatedReplaySource:** Replay with speed control (0.5×-5×) (worker thread)
+- **CaptureController:** State machine (idle → live/file/simulated → idle) (worker thread)
 - **WorkerSupervisor:** 500ms restart on unexpected exit
 - **IpcBatcher:** 50ms / 100-packet flush policy
+- **Link-type normalization:** `cap.open()` returns a string (e.g. `'ETHERNET'`); `CapSource` maps it to numeric libpcap constants via `LINK_TYPE_MAP`; unknown types logged once and mapped to `-1`
 
 ### Parser
 
@@ -89,29 +118,33 @@ Decodes raw Ethernet frames into structured protocol layers:
 - Malformed packets → partial decode with error annotation
 - Round-trip property: parse → print → parse preserves fields
 - `rawByteLength` on transport layers (TCP/UDP/ICMP) is header length only; anonymizer uses `rawByteOffset + rawByteLength` as `payloadStart`
+- Called on main thread for live capture; called in worker thread for file/simulated
 
 ### Anonymizer
 
-HMAC-based payload pseudonymization:
+HMAC-SHA256-based pseudonymization:
 
 ```
 SESSION_KEY = randomBytes(32)  // generated once at startup
-pseudonym(data) = sha256(SESSION_KEY || data).slice(0, 8)
+pseudonym(data) = HMAC-SHA256(SESSION_KEY, namespace || data).slice(0, 8)
 ```
 
 - Session key never exported, logged, or written to disk
-- Transport payload → pseudonym
-- DNS: query name/type preserved; answer records not parsed in stabilization scope
-- All protocol headers preserved unchanged
+- Transport payload -> pseudonym
+- Renderer-visible IP/MAC addresses -> deterministic session pseudonyms
+- Exported PCAP bytes replace IP/MAC fields and payload bytes with same-length HMAC-derived bytes
+- DNS: query name/type preserved in the renderer; answer address fields are anonymized
+- Non-address protocol headers preserved unchanged
 
 ### Packet Buffer
 
 Ring buffer for captured packets:
 
 - Fixed-size circular array (1K-100K capacity, default 10K)
+- Stores `ParsedPacket` (privileged domain canonical form)
 - O(1) push and getAll operations
 - Events: `'change'`, `'overflow'`
-- Methods: `push()`, `getAll()`, `getRange()`, `clear()`
+- Methods: `push()`, `getAll()`, `getRange()`, `clear()`, `setCapacity()`
 
 ### Logger
 
@@ -128,8 +161,24 @@ Structured JSON logging:
 Persistent user settings:
 
 - Storage: `userData/settings.json`
-- Settings: bufferCapacity, theme, welcomeSeen, completedChallenges, reducedMotion
-- Handles missing/corrupt files gracefully
+- Settings: `bufferCapacity`, `theme` (`light` / `dark` / `warm-dark` / `system`), `welcomeSeen`, `completedChallenges`, `reducedMotion`
+- Handles missing/corrupt files gracefully (resets to defaults)
+- Emits `'change'` event for IPC synchronization
+
+### Filter Engine
+
+Parses and evaluates filter expressions against the packet buffer:
+
+- **lexer.ts:** Single-pass tokenizer
+- **parser.ts:** Recursive-descent parser → `FilterAST`
+- **evaluator.ts:** Read-only evaluation against `AnonPacket[]`
+- Supported fields: `proto`, `src`, `dst`, `port`, `len`, `ts`
+- Comparators: `==`, `!=`, `>`, `<`, `>=`, `<=`; operators: `AND`, `OR`, `NOT`
+- Renderer debounces filter input 300ms before sending `filter:apply` IPC call
+
+### BufferStatsThrottler
+
+Throttles `buffer:stats` push-channel emissions to ≤500ms intervals. Cleaned up on `before-quit`.
 - Emits `'change'` event for IPC synchronization
 
 ---
@@ -202,15 +251,18 @@ React re-renders UI
 
 - Electron main process event loop
 - IPC handlers
-- Settings_Store, Logger, Packet_Buffer, Anonymizer, IpcBatcher
+- Settings_Store, Logger, Packet_Buffer, Anonymizer, IpcBatcher, BufferStatsThrottler
+- **CapSource (live capture)** — runs on main thread for Npcap/Windows native thread safety
+- **Parser (live capture path)** — called on main thread when CapSource delivers a RawPacket
 
 ### Worker Thread
 
-- Capture_Engine (CapSource, PcapFileSource, SimulatedReplaySource)
-- Parser
-- WorkerSupervisor manages lifecycle
+- PcapFileSource (file import)
+- SimulatedReplaySource (simulated replay)
+- CaptureController (file/simulated state machine)
+- Parser (file/simulated path)
 
-**Rationale:** Capture callbacks fire at 1,000+ Hz. Offloading capture and parsing to the worker prevents main thread blocking while the main thread retains ownership of Packet_Buffer, anonymization, and IPC delivery.
+**Rationale:** `CapSource` was moved from the worker thread to the main thread to resolve a native crash on Windows. The `cap` library's `pcap_dispatch` runs a background OS thread whose callbacks fire into the Node.js environment. In a `worker_threads` Worker, that environment pointer becomes invalid under Electron 40.x on Windows, causing an `(env) != nullptr` assertion crash. Running `CapSource` on the stable, long-lived main-process environment eliminates this crash. File and simulated replay sources remain in the worker thread since they use Node.js streams which are safe in workers.
 
 ### Renderer Thread
 

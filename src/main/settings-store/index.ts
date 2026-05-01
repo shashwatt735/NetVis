@@ -14,7 +14,7 @@ import { Logger } from '../logger'
 
 export interface Settings {
   bufferCapacity: number // 1000–100000, default 10000 (Req 12.1)
-  theme: 'light' | 'dark' | 'system' // default 'system' (Req 18.3)
+  theme: 'light' | 'dark' | 'warm-dark' | 'system' // default 'system' (Req 18.3)
   welcomeSeen: boolean // default false (Req 19.3)
   completedChallenges: string[] // default [] (Req 11.5)
   reducedMotion: boolean // default false, mirrors OS preference (Req 21.5)
@@ -190,11 +190,11 @@ export class SettingsStore extends EventEmitter {
   }
 
   /**
-   * Validate theme: must be 'light', 'dark', or 'system'.
+   * Validate theme: must be 'light', 'dark', 'warm-dark', or 'system'.
    * Requirement: Req 18.3
    */
-  private validateTheme(value: unknown): 'light' | 'dark' | 'system' {
-    if (value === 'light' || value === 'dark' || value === 'system') {
+  private validateTheme(value: unknown): 'light' | 'dark' | 'warm-dark' | 'system' {
+    if (value === 'light' || value === 'dark' || value === 'warm-dark' || value === 'system') {
       return value
     }
     return DEFAULT_SETTINGS.theme

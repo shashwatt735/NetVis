@@ -129,7 +129,7 @@ describe('Settings_Store — unit tests', () => {
 
   /**
    * Test: theme validation
-   * Validates: Requirement 18.3 — theme must be 'light', 'dark', or 'system'
+   * Validates: Requirement 18.3 — theme must be 'light', 'dark', 'warm-dark', or 'system'
    */
   it('rejects invalid theme values', () => {
     store = new SettingsStore(tempDir)
@@ -145,6 +145,9 @@ describe('Settings_Store — unit tests', () => {
 
     store.set({ theme: 'dark' })
     expect(store.get().theme).toBe('dark')
+
+    store.set({ theme: 'warm-dark' })
+    expect(store.get().theme).toBe('warm-dark')
 
     store.set({ theme: 'system' })
     expect(store.get().theme).toBe('system')

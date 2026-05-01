@@ -1,14 +1,14 @@
 // NetVis Design Tokens — Single source of truth
 
 export const PROTO_COLORS = {
-  TCP: { color: '#3B82F6', dim: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)' },
-  UDP: { color: '#10B981', dim: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
-  ICMP: { color: '#F59E0B', dim: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },
-  DNS: { color: '#8B5CF6', dim: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.3)' },
-  ARP: { color: '#EF4444', dim: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)' },
-  IPv4: { color: '#06B6D4', dim: 'rgba(6,182,212,0.12)', border: 'rgba(6,182,212,0.3)' }, // Updated to cyan (design system)
-  IPv6: { color: '#EC4899', dim: 'rgba(236,72,153,0.12)', border: 'rgba(236,72,153,0.3)' }, // Updated to pink (design system)
-  OTHER: { color: '#6B7280', dim: 'rgba(107,114,128,0.12)', border: 'rgba(107,114,128,0.3)' }
+  TCP: { color: '#4E9CE8', dim: 'rgba(78,156,232,0.12)', border: 'rgba(78,156,232,0.3)' },
+  UDP: { color: '#9B7FE8', dim: 'rgba(155,127,232,0.12)', border: 'rgba(155,127,232,0.3)' },
+  ICMP: { color: '#E8A030', dim: 'rgba(232,160,48,0.12)', border: 'rgba(232,160,48,0.3)' },
+  DNS: { color: '#35B890', dim: 'rgba(53,184,144,0.12)', border: 'rgba(53,184,144,0.3)' },
+  ARP: { color: '#D678A8', dim: 'rgba(214,120,168,0.12)', border: 'rgba(214,120,168,0.3)' },
+  IPv4: { color: '#D4824A', dim: 'rgba(212,130,74,0.12)', border: 'rgba(212,130,74,0.3)' },
+  IPv6: { color: '#4AB8D4', dim: 'rgba(74,184,212,0.12)', border: 'rgba(74,184,212,0.3)' },
+  OTHER: { color: '#7A7A86', dim: 'rgba(122,122,134,0.12)', border: 'rgba(122,122,134,0.3)' }
 } as const
 
 export type Protocol = keyof typeof PROTO_COLORS
@@ -74,7 +74,7 @@ export const RADIUS_TOKENS = [
 export const TYPE_SCALE = [
   {
     role: 'Display',
-    spec: 'Sora 600 · 28px · -0.5px',
+    spec: 'IBM Plex Sans 600 · 28px · -0.5px',
     sample: 'Packet Inspector',
     style: {
       fontFamily: 'var(--font-ui)',
@@ -85,7 +85,7 @@ export const TYPE_SCALE = [
   },
   {
     role: 'Title',
-    spec: 'Sora 600 · 18px · -0.3px',
+    spec: 'IBM Plex Sans 600 · 18px · -0.3px',
     sample: 'Protocol Distribution',
     style: {
       fontFamily: 'var(--font-ui)',
@@ -96,20 +96,20 @@ export const TYPE_SCALE = [
   },
   {
     role: 'Section head',
-    spec: 'Sora 500 · 13px · 0',
+    spec: 'IBM Plex Sans 500 · 13px · 0',
     sample: 'Ethernet Layer — Frame Header',
     style: { fontFamily: 'var(--font-ui)', fontSize: '13px', fontWeight: 500 }
   },
   {
     role: 'Body',
-    spec: 'Sora 400 · 13px · 1.6 lh',
+    spec: 'IBM Plex Sans 400 · 13px · 1.6 lh',
     sample: "The Time to Live field limits a packet's lifetime. Each router decrements by one.",
     style: { fontFamily: 'var(--font-ui)', fontSize: '13px', fontWeight: 400, lineHeight: 1.6 },
     secondary: true
   },
   {
     role: 'Label / UI',
-    spec: 'Sora 400 · 11px · 0.04em',
+    spec: 'IBM Plex Sans 400 · 11px · 0.04em',
     sample: 'INTERFACE · CAPTURE · FILTER',
     style: {
       fontFamily: 'var(--font-ui)',
@@ -122,20 +122,20 @@ export const TYPE_SCALE = [
   },
   {
     role: 'Data / Mono',
-    spec: 'Space Mono 400 · 12px',
+    spec: 'JetBrains Mono 400 · 12px',
     sample: '192.168.1.1 → 8.8.8.8 · TCP · seq=2847391920',
     style: { fontFamily: 'var(--font-data)', fontSize: '12px', fontWeight: 400 }
   },
   {
     role: 'Hex / Offset',
-    spec: 'Space Mono 400 · 11px',
+    spec: 'JetBrains Mono 400 · 11px',
     sample: '0x00 · 0x06 · 0x0c · 0x12',
     style: { fontFamily: 'var(--font-data)', fontSize: '11px', fontWeight: 400 },
     tertiary: true
   },
   {
     role: 'Filter expression',
-    spec: 'Space Mono 700 · 12px',
+    spec: 'JetBrains Mono 500 · 12px',
     sample: 'proto == TCP AND port > 1024',
     style: {
       fontFamily: 'var(--font-data)',
@@ -252,19 +252,19 @@ export const CONTRAST_PAIRS = [
 
 export const SURFACE_TOKENS = {
   dark: {
-    base: { hex: '#0d1117', token: '--nv-bg-base', use: 'Page background · lowest layer' },
+    base: { hex: '#0d0d0f', token: '--nv-bg-base', use: 'Page background · lowest layer' },
     surface1: {
-      hex: '#161b22',
+      hex: '#111114',
       token: '--nv-bg-surface-1',
       use: 'Panel backgrounds · sidebars · main content'
     },
     surface2: {
-      hex: '#21262d',
+      hex: '#16161a',
       token: '--nv-bg-surface-2',
       use: 'Toolbars · header rows · raised cards'
     },
     surface3: {
-      hex: '#30363d',
+      hex: '#1c1c22',
       token: '--nv-bg-surface-3',
       use: 'Hover states · pressed states · tags'
     }

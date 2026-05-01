@@ -1,286 +1,207 @@
 import { useMemo } from 'react'
 import type React from 'react'
-import { useNetVisStore } from '../store'
-import { PROTOCOL_COLORS, protocolColorKey } from '../constants/protocol-colors'
-import { ANIMATION } from '../constants/animations'
 import type { ProtocolName } from '../../../shared/capture-types'
-import {
-  ChartContainer,
-  ChartPieChart,
-  ChartPie,
-  ChartCell,
-  ChartTooltip,
-  type ChartConfig
-} from './ui/chart'
-import { VisualizationPanel } from './domain'
+import { PROTOCOL_COLORS, protocolColorKey } from '../constants/protocol-colors'
+import { useNetVisStore } from '../store'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const PROTOCOL_ORDER: ProtocolName[] = ['TCP', 'UDP', 'DNS', 'ICMP', 'ARP', 'OTHER']
 
-interface ChartEntry {
+interface ProtocolEntry {
   name: ProtocolName
   count: number
   percentage: number
   color: string
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Map ProtocolName → hex color, falling back to OTHER for unknown protocols. */
-function colorFor(proto: ProtocolName): string {
-  const key = protocolColorKey(proto)
-  return PROTOCOL_COLORS[key].color
+function colorFor(protocol: ProtocolName): string {
+  return PROTOCOL_COLORS[protocolColorKey(protocol)].color
 }
 
-/** Build sorted chart entries from a protocol count map. */
-function buildEntries(counts: Map<ProtocolName, number>, total: number): ChartEntry[] {
-  return Array.from(counts.entries())
-    .map(([name, count]) => ({
-      name,
-      count,
-      percentage: total > 0 ? Math.round((count / total) * 100) : 0,
-      color: colorFor(name)
-    }))
-    .sort((a, b) => b.count - a.count)
+function filterFor(protocol: ProtocolName): string {
+  return `proto == ${protocol}`
 }
 
-// ─── Custom tooltip ───────────────────────────────────────────────────────────
-
-interface TooltipPayloadItem {
-  payload: ChartEntry
+function protocolDescription(protocol: ProtocolName): string {
+  switch (protocol) {
+    case 'TCP':
+      return 'Connection-based traffic such as web sessions, app requests, and reliable streams.'
+    case 'UDP':
+      return 'Connectionless traffic often used for DNS, discovery, streaming, or lightweight messages.'
+    case 'DNS':
+      return 'Name lookups that translate domain names into addresses.'
+    case 'ICMP':
+      return 'Diagnostic traffic such as ping or delivery errors.'
+    case 'ARP':
+      return 'Local address lookup traffic used on the same network.'
+    default:
+      return 'Traffic NetVis could not classify into a more specific protocol.'
+  }
 }
 
-function ChartTooltipCustom({
-  active,
-  payload
-}: {
-  active?: boolean
-  payload?: TooltipPayloadItem[]
-}): React.JSX.Element | null {
-  if (!active || !payload?.length) return null
-  const entry = payload[0]?.payload
-  if (!entry) return null
+function distributionInterpretation(entries: ProtocolEntry[]): string {
+  const dominant = entries.reduce(
+    (best, entry) => (entry.count > best.count ? entry : best),
+    entries[0]!
+  )
+  const udp = entries.find((entry) => entry.name === 'UDP')
+  const dns = entries.find((entry) => entry.name === 'DNS')
+
+  if (dominant.count === 0) return 'No protocol distribution is available yet.'
+  if (dominant.name === 'TCP') {
+    return 'TCP dominates this capture, suggesting connection-based application traffic.'
+  }
+  if (dominant.name === 'UDP' && (dns?.count ?? 0) === 0) {
+    return 'UDP packets are present, but no DNS packets were decoded.'
+  }
+  if ((udp?.count ?? 0) > 0 && (dns?.count ?? 0) > 0) {
+    return 'UDP and DNS appear together, which often means name lookups are part of the capture.'
+  }
+  return `${dominant.name} is the largest share of this capture at ${dominant.percentage}%.`
+}
+
+export function ProtocolChart(): React.JSX.Element {
+  const packets = useNetVisStore((s) => s.packets)
+  const filterExpression = useNetVisStore((s) => s.filterExpression)
+  const setFilter = useNetVisStore((s) => s.setFilter)
+
+  const entries = useMemo<ProtocolEntry[]>(() => {
+    const counts = new Map<ProtocolName, number>()
+    for (const packet of packets) {
+      const protocol = PROTOCOL_ORDER.includes(packet.protocol) ? packet.protocol : 'OTHER'
+      counts.set(protocol, (counts.get(protocol) ?? 0) + 1)
+    }
+    const total = packets.length
+    return PROTOCOL_ORDER.map((name) => {
+      const count = counts.get(name) ?? 0
+      return {
+        name,
+        count,
+        percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+        color: colorFor(name)
+      }
+    })
+  }, [packets])
+
+  if (packets.length === 0) {
+    return (
+      <div
+        role="status"
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--nv-text-tertiary)',
+          fontSize: 13
+        }}
+      >
+        no data yet
+      </div>
+    )
+  }
 
   return (
     <div
-      role="tooltip"
+      aria-label="Protocol distribution"
       style={{
-        backgroundColor: 'var(--nv-bg-surface-2)',
-        border: '1px solid var(--nv-border-emphasis)',
-        borderRadius: 6,
-        padding: '6px 10px',
-        fontFamily: 'var(--font-ui)',
-        fontSize: 12,
-        opacity: 1,
-        boxShadow: 'var(--nv-shadow-md)'
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
+        gap: 7,
+        padding: 12,
+        overflowY: 'auto'
       }}
     >
-      <span style={{ color: entry.color, fontWeight: 600 }}>{entry.name}</span>
-      <span style={{ color: 'var(--nv-text-secondary)', marginLeft: 8 }}>
-        {entry.count.toLocaleString()} pkts · {entry.percentage}%
-      </span>
-    </div>
-  )
-}
-
-// ─── Custom label ─────────────────────────────────────────────────────────────
-
-interface LabelProps {
-  cx: number
-  cy: number
-  midAngle: number
-  outerRadius: number
-  name: ProtocolName
-  percentage: number
-}
-
-const RADIAN = Math.PI / 180
-
-function ChartLabel({
-  cx,
-  cy,
-  midAngle,
-  outerRadius,
-  name,
-  percentage
-}: LabelProps): React.JSX.Element | null {
-  // Only render labels for segments ≥5% to avoid clutter
-  if (percentage < 5) return null
-
-  const radius = outerRadius + 18
-  const x = cx + radius * Math.cos(-midAngle * RADIAN)
-  const y = cy + radius * Math.sin(-midAngle * RADIAN)
-
-  return (
-    <text
-      x={x}
-      y={y}
-      textAnchor={x > cx ? 'start' : 'end'}
-      dominantBaseline="central"
-      style={{
-        fontFamily: 'var(--font-ui)',
-        fontSize: 11,
-        fill: 'var(--nv-text-secondary)'
-      }}
-    >
-      {name} {percentage}%
-    </text>
-  )
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
-/**
- * Protocol distribution pie chart.
- * Req 6.1–6.4, 16.3, 21.2, 24.1
- */
-export function ProtocolChart(): React.JSX.Element {
-  const filteredPackets = useNetVisStore((s) => s.filteredPackets)
-
-  // Derive protocol counts — recomputed only when filteredPackets changes
-  const { entries, total } = useMemo(() => {
-    const counts = new Map<ProtocolName, number>()
-    for (const pkt of filteredPackets) {
-      counts.set(pkt.protocol, (counts.get(pkt.protocol) ?? 0) + 1)
-    }
-    const t = filteredPackets.length
-    return { entries: buildEntries(counts, t), total: t }
-  }, [filteredPackets])
-
-  // ── Chart + accessible table ─────────────────────────────────────────────
-
-  // Build ChartConfig for ChartContainer
-  const chartConfig: ChartConfig = Object.fromEntries(
-    entries.map((e) => [e.name, { label: e.name, color: e.color }])
-  )
-
-  return (
-    <VisualizationPanel
-      title="Protocol Distribution"
-      ariaLabel={`Protocol distribution across ${total.toLocaleString()} packets`}
-      empty={total === 0}
-    >
-      {/* Pie chart — visual representation */}
-      <ChartContainer config={chartConfig} style={{ height: 180 }}>
-        <ChartPieChart>
-          <ChartPie
-            data={entries}
-            dataKey="count"
-            nameKey="name"
-            cx="50%"
-            cy="50%"
-            outerRadius={68}
-            innerRadius={32}
-            paddingAngle={2}
-            isAnimationActive
-            animationDuration={ANIMATION.CHART_TRANSITION_MS}
-            animationEasing="ease-out"
-            labelLine={false}
-            label={(props: unknown) => <ChartLabel {...(props as LabelProps)} />}
+      {entries.map((entry) => {
+        const filter = filterFor(entry.name)
+        const isActive = filterExpression.trim().toUpperCase() === filter.toUpperCase()
+        return (
+          <button
+            key={entry.name}
+            type="button"
+            title={protocolDescription(entry.name)}
+            onClick={() => setFilter(isActive ? '' : filter)}
+            className="nv-focus"
+            aria-pressed={isActive}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '10px 44px minmax(0, 1fr) 42px',
+              alignItems: 'center',
+              gap: 8,
+              minHeight: 24,
+              width: '100%',
+              border: `1px solid ${isActive ? entry.color : 'transparent'}`,
+              borderRadius: 'var(--nv-radius-md)',
+              backgroundColor: isActive
+                ? PROTOCOL_COLORS[protocolColorKey(entry.name)].dim
+                : 'transparent',
+              padding: '2px 6px',
+              cursor: 'pointer',
+              textAlign: 'left'
+            }}
           >
-            {entries.map((entry) => (
-              <ChartCell key={entry.name} fill={entry.color} stroke="none" opacity={0.9} />
-            ))}
-          </ChartPie>
-          <ChartTooltip content={<ChartTooltipCustom />} />
-        </ChartPieChart>
-      </ChartContainer>
-
-      {/* Accessible data table — WCAG 2.1 AA */}
-      <table
-        aria-label="Protocol distribution"
+            <span
+              aria-hidden
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                backgroundColor: entry.color
+              }}
+            />
+            <span
+              style={{
+                color: 'var(--nv-text-primary)',
+                fontFamily: 'var(--font-data)',
+                fontSize: 11
+              }}
+            >
+              {entry.name}
+            </span>
+            <span
+              aria-hidden
+              style={{
+                height: 7,
+                borderRadius: 999,
+                backgroundColor: 'var(--nv-bg-surface-3)',
+                overflow: 'hidden'
+              }}
+            >
+              <span
+                style={{
+                  display: 'block',
+                  width: `${entry.percentage}%`,
+                  height: '100%',
+                  borderRadius: 999,
+                  backgroundColor: entry.color,
+                  transition: 'width var(--nv-duration-chart) var(--nv-ease-enter)'
+                }}
+              />
+            </span>
+            <span
+              style={{
+                color: 'var(--nv-text-tertiary)',
+                fontFamily: 'var(--font-data)',
+                fontSize: 11,
+                textAlign: 'right'
+              }}
+            >
+              {entry.percentage}%
+            </span>
+          </button>
+        )
+      })}
+      <p
         style={{
-          width: '100%',
-          borderCollapse: 'collapse',
+          margin: '2px 0 0',
+          color: 'var(--nv-text-tertiary)',
           fontSize: 11,
-          fontFamily: 'var(--font-ui)'
+          lineHeight: 1.35
         }}
       >
-        <caption className="sr-only">
-          Protocol distribution across {total.toLocaleString()} packets
-        </caption>
-        <thead>
-          <tr>
-            <th
-              scope="col"
-              style={{
-                textAlign: 'left',
-                padding: '2px 6px',
-                color: 'var(--nv-text-tertiary)',
-                fontWeight: 500,
-                borderBottom: '1px solid var(--nv-border-subtle)'
-              }}
-            >
-              Protocol
-            </th>
-            <th
-              scope="col"
-              style={{
-                textAlign: 'right',
-                padding: '2px 6px',
-                color: 'var(--nv-text-tertiary)',
-                fontWeight: 500,
-                borderBottom: '1px solid var(--nv-border-subtle)'
-              }}
-            >
-              Packets
-            </th>
-            <th
-              scope="col"
-              style={{
-                textAlign: 'right',
-                padding: '2px 6px',
-                color: 'var(--nv-text-tertiary)',
-                fontWeight: 500,
-                borderBottom: '1px solid var(--nv-border-subtle)'
-              }}
-            >
-              %
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((entry) => (
-            <tr key={entry.name}>
-              <td style={{ padding: '3px 6px' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 2,
-                      backgroundColor: entry.color,
-                      flexShrink: 0,
-                      display: 'inline-block'
-                    }}
-                  />
-                  <span style={{ color: 'var(--nv-text-primary)' }}>{entry.name}</span>
-                </span>
-              </td>
-              <td
-                style={{
-                  padding: '3px 6px',
-                  textAlign: 'right',
-                  color: 'var(--nv-text-secondary)',
-                  fontFamily: 'var(--font-data)'
-                }}
-              >
-                {entry.count.toLocaleString()}
-              </td>
-              <td
-                style={{
-                  padding: '3px 6px',
-                  textAlign: 'right',
-                  color: 'var(--nv-text-tertiary)',
-                  fontFamily: 'var(--font-data)'
-                }}
-              >
-                {entry.percentage}%
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </VisualizationPanel>
+        {distributionInterpretation(entries)}
+      </p>
+    </div>
   )
 }

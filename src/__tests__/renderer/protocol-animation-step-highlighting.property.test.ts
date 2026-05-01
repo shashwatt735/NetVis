@@ -80,7 +80,7 @@ const stepWithoutMatchArb: fc.Arbitrary<AnimationStep> = fc.record({
   description: fc.string({ minLength: 1, maxLength: 100 }),
   direction: fc.constantFrom('ltr' as const, 'rtl' as const),
   label: fc.string({ minLength: 1, maxLength: 20 }),
-  color: fc.constant('#3B82F6'),
+  color: fc.constant('#4E9CE8'),
   // matchPacket intentionally omitted
 })
 
@@ -170,7 +170,7 @@ describe('Protocol animation step highlighting (P25)', () => {
             description: 'Test',
             direction: 'ltr',
             label: 'TEST',
-            color: '#3B82F6',
+            color: '#4E9CE8',
             matchPacket: (p) => p.id === matchId,
           }
 
@@ -210,7 +210,7 @@ describe('Protocol animation step highlighting (P25)', () => {
             description: 'Test',
             direction: 'ltr',
             label: 'TEST',
-            color: '#3B82F6',
+            color: '#4E9CE8',
             matchPacket: () => true,
           }
 

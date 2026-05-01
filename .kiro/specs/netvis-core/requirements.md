@@ -22,7 +22,7 @@ NetVis is a cross-platform desktop application built with Electron, React, and T
 - **Packet_List**: The scrollable UI table that displays captured or loaded packets in real time.
 - **Protocol_Chart**: The UI chart that shows the distribution of protocols across packets currently in the Packet_Buffer.
 - **Educational_Layer**: The subsystem providing tooltips, field explanations, and guided challenges.
-- **Anonymizer**: The component that replaces sensitive payload data with deterministic pseudonyms before any data reaches the renderer process.
+- **Anonymizer**: The component that replaces sensitive payload, IP address, and MAC address data with deterministic session pseudonyms before any data reaches the renderer process.
 - **IPC_Bridge**: The Electron contextBridge/preload layer that mediates all communication between the renderer and main processes.
 - **Logger**: The main-process component that writes structured diagnostic and error entries to a persistent log file.
 - **Packet**: A general term for a structured packet object used by the Application; where precision is required, the document distinguishes between ParsedPacket in the privileged domain and AnonPacket in the renderer-visible domain.
@@ -118,11 +118,12 @@ These rules apply unconditionally across the entire application. Any implementat
 
 #### Acceptance Criteria
 
-1. THE Anonymizer SHALL replace all transport-layer payload bytes with a deterministic pseudonym derived from a session-scoped key before any Packet data is passed through the IPC_Bridge to the renderer process.
+1. THE Anonymizer SHALL replace all transport-layer payload bytes with a deterministic HMAC-derived pseudonym before any Packet data is passed through the IPC_Bridge to the renderer process.
 2. THE Application SHALL enable anonymization by default; the user SHALL NOT be able to disable anonymization through the UI without explicitly modifying application configuration outside the UI.
-3. THE Anonymizer SHALL preserve packet metadata (timestamps, protocol headers, field labels, byte lengths) unchanged so that educational analysis remains meaningful.
+3. THE Anonymizer SHALL preserve packet metadata (timestamps, non-address protocol headers, field labels, byte lengths) unchanged so that educational analysis remains meaningful.
 4. IF a packet contains a DNS response, THEN THE Anonymizer SHALL anonymize the resolved IP addresses in the answer section while preserving the query name and record type.
-5. THE Application SHALL NOT expose raw payload bytes in any renderer-accessible IPC channel, log file, or exported PCAP file.
+5. THE Application SHALL NOT expose raw payload bytes, raw IP addresses, or raw MAC addresses in any renderer-accessible IPC channel, log file, or exported PCAP file.
+6. THE Anonymizer SHALL replace renderer-visible IP and MAC addresses with deterministic session pseudonyms so repeated addresses can still be correlated during one app session.
 
 ---
 

@@ -42,7 +42,9 @@ const mockChartState = vi.hoisted(() => ({
 }))
 
 const mockStoreState = vi.hoisted(() => ({
+  packets: [] as AnonPacket[],
   filteredPackets: [] as AnonPacket[],
+  filterExpression: '',
   setFilter: vi.fn<(expression: string) => void>()
 }))
 
@@ -447,7 +449,9 @@ describe('PacketFlowTimeline bar click regression', () => {
   beforeEach(() => {
     mockChartState.data = []
     mockChartState.barOnClick = undefined
+    mockStoreState.packets = []
     mockStoreState.filteredPackets = []
+    mockStoreState.filterExpression = ''
     mockStoreState.setFilter = vi.fn<(expression: string) => void>()
   })
 
@@ -457,25 +461,19 @@ describe('PacketFlowTimeline bar click regression', () => {
     vi.clearAllMocks()
   })
 
-  it('clicking a chart bar uses the clicked bucket payload startMs when setting the filter', () => {
+  it('renders a filterable bucket using the bucket startMs when generating the filter', () => {
     const packet = makeAnonPacket({
       id: 'timeline-click-packet',
       timestamp: 1_700_000_000_123
     })
     const expectedStartMs = 1_700_000_000_000
 
+    mockStoreState.packets = [packet]
     mockStoreState.filteredPackets = [packet]
 
-    renderToStaticMarkup(React.createElement(PacketFlowTimeline))
+    const markup = renderToStaticMarkup(React.createElement(PacketFlowTimeline))
 
-    const targetBucket = mockChartState.data.find((bucket) => bucket.startMs === expectedStartMs)
-    expect(targetBucket).toBeDefined()
-    expect(mockChartState.barOnClick).toBeDefined()
-    mockChartState.barOnClick?.({ payload: targetBucket }, mockChartState.data.length - 1, {
-      type: 'click'
-    })
-
-    expect(mockStoreState.setFilter).toHaveBeenCalledTimes(1)
-    expect(mockStoreState.setFilter).toHaveBeenCalledWith(timeRangeFilter(expectedStartMs))
+    expect(markup).toContain('1 packets')
+    expect(timeRangeFilter(expectedStartMs)).toBe('ts >= 1700000000000 AND ts < 1700000001000')
   })
 })

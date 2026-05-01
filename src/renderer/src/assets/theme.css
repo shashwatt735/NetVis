@@ -1,4 +1,5 @@
 @custom-variant dark (&:is(.dark *));
+@custom-variant warm-dark (&:is(.warm-dark *));
 
 :root {
   --font-size: 16px;
@@ -43,39 +44,44 @@
 
   /* ─── NetVis Design Tokens ─── */
   /* Protocol Colors — invariant across modes */
-  --proto-tcp: #3b82f6;
-  --proto-tcp-dim: rgba(59, 130, 246, 0.12);
-  --proto-tcp-border: rgba(59, 130, 246, 0.3);
-  --proto-udp: #10b981;
-  --proto-udp-dim: rgba(16, 185, 129, 0.12);
-  --proto-udp-border: rgba(16, 185, 129, 0.3);
-  --proto-icmp: #f59e0b;
-  --proto-icmp-dim: rgba(245, 158, 11, 0.12);
-  --proto-icmp-border: rgba(245, 158, 11, 0.3);
-  --proto-dns: #8b5cf6;
-  --proto-dns-dim: rgba(139, 92, 246, 0.12);
-  --proto-dns-border: rgba(139, 92, 246, 0.3);
-  --proto-arp: #ef4444;
-  --proto-arp-dim: rgba(239, 68, 68, 0.12);
-  --proto-arp-border: rgba(239, 68, 68, 0.3);
-  --proto-ipv4: #06b6d4;
-  --proto-ipv4-dim: rgba(6, 182, 212, 0.12);
-  --proto-ipv4-border: rgba(6, 182, 212, 0.3);
-  --proto-ipv6: #ec4899;
-  --proto-ipv6-dim: rgba(236, 72, 153, 0.12);
-  --proto-ipv6-border: rgba(236, 72, 153, 0.3);
-  --proto-other: #6b7280;
-  --proto-other-dim: rgba(107, 114, 128, 0.12);
-  --proto-other-border: rgba(107, 114, 128, 0.3);
+  --proto-tcp: #4e9ce8;
+  --proto-tcp-dim: rgba(78, 156, 232, 0.12);
+  --proto-tcp-border: rgba(78, 156, 232, 0.3);
+  --proto-udp: #9b7fe8;
+  --proto-udp-dim: rgba(155, 127, 232, 0.12);
+  --proto-udp-border: rgba(155, 127, 232, 0.3);
+  --proto-icmp: #e8a030;
+  --proto-icmp-dim: rgba(232, 160, 48, 0.12);
+  --proto-icmp-border: rgba(232, 160, 48, 0.3);
+  --proto-dns: #35b890;
+  --proto-dns-dim: rgba(53, 184, 144, 0.12);
+  --proto-dns-border: rgba(53, 184, 144, 0.3);
+  --proto-arp: #d678a8;
+  --proto-arp-dim: rgba(214, 120, 168, 0.12);
+  --proto-arp-border: rgba(214, 120, 168, 0.3);
+  --proto-ipv4: #d4824a;
+  --proto-ipv4-dim: rgba(212, 130, 74, 0.12);
+  --proto-ipv4-border: rgba(212, 130, 74, 0.3);
+  --proto-ipv6: #4ab8d4;
+  --proto-ipv6-dim: rgba(74, 184, 212, 0.12);
+  --proto-ipv6-border: rgba(74, 184, 212, 0.3);
+  --proto-other: #7a7a86;
+  --proto-other-dim: rgba(122, 122, 134, 0.12);
+  --proto-other-border: rgba(122, 122, 134, 0.3);
 
   /* Status */
   --nv-status-success: #1a7f37;
   --nv-status-warning: #9a6700;
   --nv-status-error: #cf222e;
 
+  /* Semantic color aliases used in components */
+  --color-live: #1a7f37;    /* active capture indicator — same as status-success in light */
+  --color-error: #cf222e;   /* destructive actions and error states */
+  --color-idle: #8c959f;    /* idle/stopped state — same as text-tertiary in light */
+
   /* Accent — used for active/selected states in interactive components */
-  --nv-accent: #3b82f6;
-  --nv-accent-dim: rgba(59, 130, 246, 0.12);
+  --nv-accent: #4e9ce8;
+  --nv-accent-dim: rgba(78, 156, 232, 0.12);
 
   /* Light mode surfaces */
   --nv-bg-base: #f6f8fa;
@@ -91,8 +97,8 @@
   --nv-text-inverse: #ffffff;
 
   /* Font families */
-  --font-ui: 'Sora', system-ui, sans-serif;
-  --font-data: 'Space Mono', 'Courier New', monospace;
+  --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-data: 'JetBrains Mono', 'Courier New', monospace;
 
   /* Spacing */
   --nv-space-1: 4px;
@@ -172,8 +178,8 @@
   --destructive-foreground: oklch(0.637 0.237 25.331);
   --border: oklch(0.269 0 0);
   --input: oklch(0.269 0 0);
-  --input-background: #21262d;
-  --switch-background: #30363d;
+  --input-background: #16161a;
+  --switch-background: #1c1c22;
   --ring: oklch(0.439 0 0);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
@@ -192,32 +198,109 @@
   --sidebar-ring: oklch(0.439 0 0);
 
   /* Dark mode surfaces */
-  --nv-bg-base: #0d1117;
-  --nv-bg-surface-1: #161b22;
-  --nv-bg-surface-2: #21262d;
-  --nv-bg-surface-3: #30363d;
+  --nv-bg-base: #0d0d0f;
+  --nv-bg-surface-1: #111114;
+  --nv-bg-surface-2: #16161a;
+  --nv-bg-surface-3: #1c1c22;
   --nv-border-subtle: rgba(255, 255, 255, 0.06);
   --nv-border-default: rgba(255, 255, 255, 0.12);
   --nv-border-emphasis: rgba(255, 255, 255, 0.24);
-  --nv-text-primary: #e6edf3;
-  --nv-text-secondary: #7d8590;
-  --nv-text-tertiary: #484f58;
-  --nv-text-inverse: #0d1117;
+  --nv-text-primary: #e8e8f0;
+  --nv-text-secondary: #8a8a9a;
+  --nv-text-tertiary: #484854;
+  --nv-text-inverse: #0d0d0f;
 
   /* Status (dark – brighter for dark surfaces) */
   --nv-status-success: #3fb950;
   --nv-status-warning: #d29922;
   --nv-status-error: #f85149;
 
+  /* Semantic color aliases (dark overrides) */
+  --color-live: #3fb950;
+  --color-error: #f85149;
+  --color-idle: #484854;
+
   /* Accent (dark) */
-  --nv-accent: #58a6ff;
-  --nv-accent-dim: rgba(88, 166, 255, 0.15);
+  --nv-accent: #4e9ce8;
+  --nv-accent-dim: rgba(78, 156, 232, 0.15);
 
   /* ─── Shadow Tokens (dark – stronger) ─── */
   --nv-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --nv-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.55);
   --nv-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.65);
   --nv-shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.75);
+}
+
+.warm-dark {
+  --background: #0f0d0c;
+  --foreground: #ede8e2;
+  --card: #151210;
+  --card-foreground: #ede8e2;
+  --popover: #151210;
+  --popover-foreground: #ede8e2;
+  --primary: #ede8e2;
+  --primary-foreground: #0f0d0c;
+  --secondary: #221c18;
+  --secondary-foreground: #ede8e2;
+  --muted: #1b1614;
+  --muted-foreground: #8c8278;
+  --accent: #221c18;
+  --accent-foreground: #ede8e2;
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: #221c18;
+  --input-background: #1b1614;
+  --switch-background: #342820;
+  --ring: #564e48;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: #0f0d0c;
+  --sidebar-foreground: #ede8e2;
+  --sidebar-primary: #d4824a;
+  --sidebar-primary-foreground: #ede8e2;
+  --sidebar-accent: #221c18;
+  --sidebar-accent-foreground: #ede8e2;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #564e48;
+
+  /* Warm-dark mode surfaces */
+  --nv-bg-base: #0f0d0c;
+  --nv-bg-surface-1: #151210;
+  --nv-bg-surface-2: #1b1614;
+  --nv-bg-surface-3: #221c18;
+  --nv-border-subtle: rgba(255, 255, 255, 0.05);
+  --nv-border-default: rgba(255, 255, 255, 0.1);
+  --nv-border-emphasis: rgba(255, 255, 255, 0.2);
+  --nv-text-primary: #ede8e2;
+  --nv-text-secondary: #8c8278;
+  --nv-text-tertiary: #564e48;
+  --nv-text-inverse: #0f0d0c;
+
+  /* Status */
+  --nv-status-success: #3fb950;
+  --nv-status-warning: #d29922;
+  --nv-status-error: #f85149;
+
+  /* Semantic color aliases (warm-dark overrides) */
+  --color-live: #3fb950;
+  --color-error: #f85149;
+  --color-idle: #564e48;
+
+  /* Accent */
+  --nv-accent: #d4824a;
+  --nv-accent-dim: rgba(212, 130, 74, 0.15);
+
+  /* Shadow Tokens */
+  --nv-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --nv-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.65);
+  --nv-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.75);
+  --nv-shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.85);
 }
 
 @theme inline {
@@ -373,7 +456,7 @@
 /* NetVis focus ring — always TCP blue */
 .nv-focus:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(78, 156, 232, 0.5);
 }
 
 /* Collapsible animations — applied via Radix data-state */

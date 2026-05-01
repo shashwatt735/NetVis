@@ -1,145 +1,91 @@
 import type React from 'react'
-import { HelpCircle } from 'lucide-react'
 import { useNetVisStore } from '../store'
-import { AdvancedSettingsPanel } from './AdvancedSettingsPanel'
-import { CaptureActiveIndicator } from './CaptureActiveIndicator'
-import { CaptureControls } from './CaptureControls'
-import { ChallengeSelector } from './ChallengeSelector'
+import { CaptureToolbarActions, ReplaySpeedControl } from './CaptureToolbarActions'
 import { FilterBar } from './FilterBar'
 import { InterfaceSelector } from './InterfaceSelector'
-import { ThemeToggle } from './ThemeToggle'
-import { Button } from './ui/button'
+
+const PAGE_LABELS = {
+  capture: 'Capture',
+  learn: 'Learn',
+  challenges: 'Challenges',
+  settings: 'Settings'
+} as const
+
+function CaptureToolbar(): React.JSX.Element {
+  return (
+    <>
+      <CaptureToolbarActions />
+      <InterfaceSelector />
+      <div style={{ flex: 1, minWidth: 220, maxWidth: 560 }}>
+        <FilterBar />
+      </div>
+      <ReplaySpeedControl />
+    </>
+  )
+}
 
 /**
- * Top application toolbar.
- * Contains: logo, InterfaceSelector, CaptureControls, CaptureActiveIndicator,
- * FilterBar, ThemeToggle, Show Welcome Guide button.
- * Req 1.1, 1.4, 19.4, 21.4, 24.1, 24.2
+ * Page-level toolbar. Navigation and app preferences live in the sidebar/pages.
  */
 export function Toolbar(): React.JSX.Element {
-  const captureStatus = useNetVisStore((s) => s.captureStatus)
-  const setWelcomeSeen = useNetVisStore((s) => s.setWelcomeSeen)
-  const isCapturing =
-    captureStatus.state === 'active' ||
-    captureStatus.state === 'file' ||
-    captureStatus.state === 'simulated'
-
-  const handleShowWelcome = (): void => {
-    setWelcomeSeen(false)
-  }
+  const activePage = useNetVisStore((s) => s.activePage)
 
   return (
     <header
       role="banner"
-      aria-label="Application toolbar"
+      aria-label={`${PAGE_LABELS[activePage]} toolbar`}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
-        height: 52,
+        gap: 10,
+        height: 44,
         padding: '0 12px',
-        backgroundColor: 'var(--nv-bg-surface-2)',
+        backgroundColor: 'var(--nv-bg-surface-1)',
         borderBottom: '1px solid var(--nv-border-default)',
         flexShrink: 0,
         overflow: 'visible'
       }}
     >
-      {/* ── Logo ── */}
       <div
-        aria-label="NetVis branding"
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
+          width: 118,
           flexShrink: 0,
-          paddingRight: 4
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: 8
         }}
       >
         <span
-          aria-label="NetVis"
           style={{
-            fontFamily: 'var(--font-ui)',
+            fontSize: 13,
             fontWeight: 700,
-            fontSize: 15,
-            letterSpacing: '-0.3px',
             color: 'var(--nv-text-primary)',
-            userSelect: 'none',
-            whiteSpace: 'nowrap'
+            letterSpacing: 0
           }}
         >
           Net<span style={{ color: 'var(--proto-tcp)' }}>Vis</span>
         </span>
-      </div>
-
-      {/* ── Divider ── */}
-      <span
-        aria-hidden
-        style={{ width: 1, height: 24, backgroundColor: 'var(--nv-border-default)', flexShrink: 0 }}
-      />
-
-      {/* ── Capture group: interface + controls + active indicator ── */}
-      <div
-        role="group"
-        aria-label="Capture setup and controls"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          flexShrink: 0,
-          minWidth: 0
-        }}
-      >
-        <InterfaceSelector />
-        <CaptureControls />
-        {isCapturing && <CaptureActiveIndicator />}
-      </div>
-
-      {/* ── Filter bar (centered, flexible) ── */}
-      <div
-        style={{
-          flex: 1,
-          minWidth: 200,
-          display: 'flex',
-          justifyContent: 'center',
-          padding: '0 4px'
-        }}
-      >
-        <FilterBar />
-      </div>
-
-      {/* ── Utility group: challenges, guide, theme, settings ── */}
-      <div
-        role="group"
-        aria-label="Utility controls"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          flexShrink: 0
-        }}
-      >
-        <ChallengeSelector />
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleShowWelcome}
-          aria-label="Open capture guide"
-          title="Open capture guide"
+        <span
           style={{
-            height: 28,
-            padding: '0 8px',
-            gap: 5,
-            fontSize: 13
+            fontSize: 11,
+            color: 'var(--nv-text-tertiary)'
           }}
         >
-          <HelpCircle size={14} aria-hidden />
-          Guide
-        </Button>
-
-        <ThemeToggle />
-        <AdvancedSettingsPanel />
+          {PAGE_LABELS[activePage]}
+        </span>
       </div>
+
+      {activePage === 'capture' ? (
+        <CaptureToolbar />
+      ) : (
+        <span style={{ color: 'var(--nv-text-secondary)', fontSize: 13, fontWeight: 600 }}>
+          {activePage === 'learn'
+            ? 'Browse concepts and jump back to live packets'
+            : activePage === 'challenges'
+              ? 'Choose a guided exercise, then prove it in capture'
+              : 'Change app preferences and replay guides'}
+        </span>
+      )}
     </header>
   )
 }

@@ -44,7 +44,7 @@ export function HelpIcon({
             padding: 0,
             background: 'none',
             border: 'none',
-            cursor: 'pointer',
+            cursor: 'default',
             color: 'var(--nv-text-tertiary)',
             flexShrink: 0,
             borderRadius: '50%',

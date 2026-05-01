@@ -38,7 +38,7 @@ export const BufferSetCapacitySchema = z.object({
 export const SettingsPatchSchema = z
   .object({
     bufferCapacity: z.number().int().min(1000).max(100000).optional(),
-    theme: z.enum(['light', 'dark', 'system']).optional(),
+    theme: z.enum(['light', 'dark', 'warm-dark', 'system']).optional(),
     welcomeSeen: z.boolean().optional(),
     completedChallenges: z.array(z.string()).optional(),
     reducedMotion: z.boolean().optional()

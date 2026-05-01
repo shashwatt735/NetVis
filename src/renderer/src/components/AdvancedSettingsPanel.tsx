@@ -1,6 +1,7 @@
 import { Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type React from 'react'
+import type { Theme } from '../../../shared/capture-types'
 import { useNetVisStore } from '../store'
 import { HelpIcon } from './HelpIcon'
 import { Button } from './ui/button'
@@ -53,7 +54,7 @@ export function AdvancedSettingsPanel(): React.JSX.Element {
   }
 
   const handleThemeChange = async (value: string): Promise<void> => {
-    const nextTheme = value as 'light' | 'dark' | 'system'
+    const nextTheme = value as Theme
     try {
       await persistTheme(nextTheme)
     } catch (err: unknown) {

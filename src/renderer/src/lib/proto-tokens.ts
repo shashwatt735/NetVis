@@ -14,14 +14,14 @@
  */
 
 export const PROTO_COLORS = {
-  TCP: { color: '#3B82F6', dim: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)' },
-  UDP: { color: '#10B981', dim: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
-  ICMP: { color: '#F59E0B', dim: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },
-  DNS: { color: '#8B5CF6', dim: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.3)' },
-  ARP: { color: '#EF4444', dim: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)' },
-  IPv4: { color: '#06B6D4', dim: 'rgba(6,182,212,0.12)', border: 'rgba(6,182,212,0.3)' },
-  IPv6: { color: '#EC4899', dim: 'rgba(236,72,153,0.12)', border: 'rgba(236,72,153,0.3)' },
-  OTHER: { color: '#6B7280', dim: 'rgba(107,114,128,0.12)', border: 'rgba(107,114,128,0.3)' },
+  TCP: { color: '#4E9CE8', dim: 'rgba(78,156,232,0.12)', border: 'rgba(78,156,232,0.3)' },
+  UDP: { color: '#9B7FE8', dim: 'rgba(155,127,232,0.12)', border: 'rgba(155,127,232,0.3)' },
+  ICMP: { color: '#E8A030', dim: 'rgba(232,160,48,0.12)', border: 'rgba(232,160,48,0.3)' },
+  DNS: { color: '#35B890', dim: 'rgba(53,184,144,0.12)', border: 'rgba(53,184,144,0.3)' },
+  ARP: { color: '#D678A8', dim: 'rgba(214,120,168,0.12)', border: 'rgba(214,120,168,0.3)' },
+  IPv4: { color: '#D4824A', dim: 'rgba(212,130,74,0.12)', border: 'rgba(212,130,74,0.3)' },
+  IPv6: { color: '#4AB8D4', dim: 'rgba(74,184,212,0.12)', border: 'rgba(74,184,212,0.3)' },
+  OTHER: { color: '#7A7A86', dim: 'rgba(122,122,134,0.12)', border: 'rgba(122,122,134,0.3)' },
 } as const;
 
 export type Protocol = keyof typeof PROTO_COLORS;

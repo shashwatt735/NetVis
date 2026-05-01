@@ -10,12 +10,16 @@ import { mapError } from './errors'
 
 const MAX_FRAME_SIZE = 65535 // FILE-SEC-01
 const MAX_DELAY_MS = 2000
+const STREAM_PAUSE_QUEUE_DEPTH = 2
 
 export class SimulatedReplaySource implements PacketSource {
   private stream: fs.ReadStream | null = null
   private timer: ReturnType<typeof setTimeout> | null = null
   private stopped = false
   private prevTimestamp: number | null = null
+  private parserEnded = false
+  private processingQueue = false
+  private packetQueue: RawPacket[] = []
 
   private packetHandler: (packet: RawPacket) => void = () => {}
   private errorHandler: (err: CaptureError) => void = () => {}
@@ -25,6 +29,50 @@ export class SimulatedReplaySource implements PacketSource {
     private readonly filePath: string,
     private readonly speed: SpeedMultiplier = 1
   ) {}
+
+  private enqueuePacket(packet: RawPacket): void {
+    this.packetQueue.push(packet)
+    if (this.packetQueue.length >= STREAM_PAUSE_QUEUE_DEPTH) {
+      this.stream?.pause()
+    }
+    this.scheduleNextPacket()
+  }
+
+  private scheduleNextPacket(): void {
+    if (this.stopped || this.processingQueue) return
+
+    const raw = this.packetQueue.shift()
+    if (!raw) {
+      if (this.parserEnded) this.finish()
+      return
+    }
+
+    const prev = this.prevTimestamp
+    const delay =
+      prev === null ? 0 : Math.min(Math.max((raw.timestamp - prev) / this.speed, 0), MAX_DELAY_MS)
+
+    this.processingQueue = true
+    this.timer = setTimeout(() => {
+      this.timer = null
+      if (this.stopped) return
+
+      this.packetHandler(raw)
+      this.prevTimestamp = raw.timestamp
+      this.processingQueue = false
+
+      if (!this.parserEnded && this.stream?.isPaused() && this.packetQueue.length < STREAM_PAUSE_QUEUE_DEPTH) {
+        this.stream.resume()
+      }
+
+      this.scheduleNextPacket()
+    }, delay)
+  }
+
+  private finish(): void {
+    if (this.stopped) return
+    this.stopped = true
+    this.stoppedHandler()
+  }
 
   async start(): Promise<void> {
     if (this.stopped) return
@@ -38,12 +86,12 @@ export class SimulatedReplaySource implements PacketSource {
       )
     }
 
-    let parse: (stream: fs.ReadStream) => NodeJS.EventEmitter & { pause(): void; resume(): void }
+    let parse: (stream: fs.ReadStream) => NodeJS.EventEmitter
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const pcapParser = require('pcap-parser') as {
-        parse: (stream: fs.ReadStream) => NodeJS.EventEmitter & { pause(): void; resume(): void }
+        parse: (stream: fs.ReadStream) => NodeJS.EventEmitter
       }
       parse = pcapParser.parse
     } catch (err) {
@@ -55,7 +103,6 @@ export class SimulatedReplaySource implements PacketSource {
       this.stream = fs.createReadStream(this.filePath)
       const parser = parse(this.stream)
       const sourceId = path.basename(this.filePath)
-      const speed = this.speed
 
       // Streaming mode — at most 2 packets in memory at once
       parser.on(
@@ -72,14 +119,8 @@ export class SimulatedReplaySource implements PacketSource {
         }) => {
           if (this.stopped) return
 
-          // Pause immediately after receiving a packet
-          parser.pause()
-
           // FILE-SEC-01: skip oversized packets
-          if (pkt.data.length > MAX_FRAME_SIZE) {
-            parser.resume()
-            return
-          }
+          if (pkt.data.length > MAX_FRAME_SIZE) return
 
           const timestamp =
             pkt.header.timestampSeconds * 1000 + Math.floor(pkt.header.timestampMicroseconds / 1000)
@@ -93,25 +134,14 @@ export class SimulatedReplaySource implements PacketSource {
             linkType: pkt.linkType ?? 1
           }
 
-          const prev = this.prevTimestamp
-          this.prevTimestamp = timestamp
-
-          const delay =
-            prev === null ? 0 : Math.min(Math.max((raw.timestamp - prev) / speed, 0), MAX_DELAY_MS)
-
-          this.timer = setTimeout(() => {
-            if (this.stopped) return
-            this.packetHandler(raw)
-            parser.resume()
-          }, delay)
+          this.enqueuePacket(raw)
         }
       )
 
       parser.on('end', () => {
-        if (!this.stopped) {
-          this.stopped = true
-          this.stoppedHandler()
-        }
+        if (this.stopped) return
+        this.parserEnded = true
+        this.scheduleNextPacket()
       })
 
       // Runtime errors (post-startup) — use errorHandler, not throw
@@ -131,6 +161,8 @@ export class SimulatedReplaySource implements PacketSource {
   async stop(): Promise<void> {
     if (this.stopped) return
     this.stopped = true
+    this.packetQueue = []
+    this.processingQueue = false
     if (this.timer !== null) {
       clearTimeout(this.timer)
       this.timer = null

@@ -1,418 +1,174 @@
-import { useMemo, useRef, useEffect } from 'react'
+import { useMemo } from 'react'
 import type React from 'react'
-import { useNetVisStore } from '../store'
-import { PROTOCOL_COLORS, protocolColorKey } from '../constants/protocol-colors'
 import type { ProtocolName } from '../../../shared/capture-types'
-import {
-  ChartContainer,
-  ChartBarChart,
-  ChartBar,
-  ChartCell,
-  ChartTooltip,
-  ChartXAxis,
-  ChartYAxis,
-  type ChartConfig
-} from './ui/chart'
-import { VisualizationPanel } from './domain'
+import { PROTOCOL_COLORS, protocolColorKey } from '../constants/protocol-colors'
+import { useNetVisStore } from '../store'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const BUCKET_COUNT = 60 // 60 one-second buckets
+const BUCKET_COUNT = 36
 const BUCKET_WIDTH_MS = 1000
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface TimelineBucket {
-  /** Bucket start time as Unix ms */
   startMs: number
-  /** HH:MM:SS label for x-axis */
   label: string
-  /** Total packet count in this bucket */
   count: number
-  /** Dominant protocol in this bucket (most packets) */
   dominantProtocol: ProtocolName
-  /** Per-protocol counts for the accessible table */
-  protocolCounts: Partial<Record<ProtocolName, number>>
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatHHMMSS(ms: number): string {
-  const d = new Date(ms)
-  const hh = d.getHours().toString().padStart(2, '0')
-  const mm = d.getMinutes().toString().padStart(2, '0')
-  const ss = d.getSeconds().toString().padStart(2, '0')
-  return `${hh}:${mm}:${ss}`
+function formatTime(ms: number): string {
+  const date = new Date(ms)
+  return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
 }
 
-function colorFor(proto: ProtocolName): string {
-  const key = protocolColorKey(proto)
-  return PROTOCOL_COLORS[key].color
+function colorFor(protocol: ProtocolName): string {
+  return PROTOCOL_COLORS[protocolColorKey(protocol)].color
 }
 
-/**
- * Build 60 one-second buckets anchored to the most recent packet's second.
- * Buckets with no packets get count=0 and dominantProtocol='OTHER'.
- */
-function buildBuckets(packets: { timestamp: number; protocol: ProtocolName }[]): TimelineBucket[] {
+function buildBuckets(packets: Array<{ timestamp: number; protocol: ProtocolName }>): TimelineBucket[] {
   if (packets.length === 0) return []
 
-  // Anchor to the latest packet's second boundary
-  let latestMs = 0
-  for (const p of packets) {
-    if (p.timestamp > latestMs) latestMs = p.timestamp
-  }
-  const latestBucketStart = Math.floor(latestMs / BUCKET_WIDTH_MS) * BUCKET_WIDTH_MS
-  const firstBucketStart = latestBucketStart - (BUCKET_COUNT - 1) * BUCKET_WIDTH_MS
+  const latestMs = packets.reduce((max, packet) => Math.max(max, packet.timestamp), 0)
+  const latestStart = Math.floor(latestMs / BUCKET_WIDTH_MS) * BUCKET_WIDTH_MS
+  const firstStart = latestStart - (BUCKET_COUNT - 1) * BUCKET_WIDTH_MS
+  const buckets = Array.from({ length: BUCKET_COUNT }, (_, index): TimelineBucket => ({
+    startMs: firstStart + index * BUCKET_WIDTH_MS,
+    label: formatTime(firstStart + index * BUCKET_WIDTH_MS),
+    count: 0,
+    dominantProtocol: 'OTHER'
+  }))
+  const protocolCounts = new Map<number, Map<ProtocolName, number>>()
 
-  // Initialize all 60 buckets
-  const buckets: TimelineBucket[] = Array.from({ length: BUCKET_COUNT }, (_, i) => {
-    const startMs = firstBucketStart + i * BUCKET_WIDTH_MS
-    return {
-      startMs,
-      label: formatHHMMSS(startMs),
-      count: 0,
-      dominantProtocol: 'OTHER' as ProtocolName,
-      protocolCounts: {}
-    }
-  })
-
-  // Distribute packets into buckets
-  for (const pkt of packets) {
-    const bucketIndex = Math.floor((pkt.timestamp - firstBucketStart) / BUCKET_WIDTH_MS)
-    if (bucketIndex < 0 || bucketIndex >= BUCKET_COUNT) continue
+  for (const packet of packets) {
+    const bucketIndex = Math.floor((packet.timestamp - firstStart) / BUCKET_WIDTH_MS)
     const bucket = buckets[bucketIndex]
     if (!bucket) continue
     bucket.count++
-    bucket.protocolCounts[pkt.protocol] = (bucket.protocolCounts[pkt.protocol] ?? 0) + 1
+    const counts = protocolCounts.get(bucketIndex) ?? new Map<ProtocolName, number>()
+    counts.set(packet.protocol, (counts.get(packet.protocol) ?? 0) + 1)
+    protocolCounts.set(bucketIndex, counts)
   }
 
-  // Compute dominant protocol for each bucket
-  for (const bucket of buckets) {
-    if (bucket.count === 0) continue
-    let maxCount = 0
+  for (const [bucketIndex, counts] of protocolCounts) {
     let dominant: ProtocolName = 'OTHER'
-    for (const [proto, cnt] of Object.entries(bucket.protocolCounts) as [ProtocolName, number][]) {
-      if (cnt > maxCount) {
-        maxCount = cnt
-        dominant = proto
+    let max = 0
+    for (const [protocol, count] of counts) {
+      if (count > max) {
+        dominant = protocol
+        max = count
       }
     }
-    bucket.dominantProtocol = dominant
+    const bucket = buckets[bucketIndex]
+    if (bucket) bucket.dominantProtocol = dominant
   }
 
   return buckets
 }
 
-/**
- * Build a filter expression that matches packets within a 1-second bucket.
- * Used by Req 22.4 click handler.
- */
-function timeRangeFilter(startMs: number): string {
-  const endMs = startMs + BUCKET_WIDTH_MS
-  return `ts >= ${startMs} AND ts < ${endMs}`
+export function timeRangeFilter(startMs: number): string {
+  return `ts >= ${startMs} AND ts < ${startMs + BUCKET_WIDTH_MS}`
 }
 
-// ─── Custom tooltip ───────────────────────────────────────────────────────────
+export function PacketFlowTimeline(): React.JSX.Element {
+  const packets = useNetVisStore((s) => s.packets)
+  const filterExpression = useNetVisStore((s) => s.filterExpression)
+  const setFilter = useNetVisStore((s) => s.setFilter)
 
-interface TooltipPayloadItem {
-  payload: TimelineBucket
-}
+  const buckets = useMemo(
+    () => buildBuckets(packets.map((packet) => ({ timestamp: packet.timestamp, protocol: packet.protocol }))),
+    [packets]
+  )
+  const maxCount = Math.max(1, ...buckets.map((bucket) => bucket.count))
 
-function TimelineTooltipCustom({
-  active,
-  payload
-}: {
-  active?: boolean
-  payload?: TooltipPayloadItem[]
-}): React.JSX.Element | null {
-  if (!active || !payload?.length) return null
-  const bucket = payload[0]?.payload
-  if (!bucket) return null
+  if (packets.length === 0) {
+    return (
+      <div
+        role="status"
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--nv-text-tertiary)',
+          fontSize: 13
+        }}
+      >
+        no data yet
+      </div>
+    )
+  }
 
   return (
     <div
-      role="tooltip"
+      aria-label="Packet flow timeline"
       style={{
-        backgroundColor: 'var(--nv-bg-surface-2)',
-        border: '1px solid var(--nv-border-emphasis)',
-        borderRadius: 6,
-        padding: '6px 10px',
-        fontFamily: 'var(--font-ui)',
-        fontSize: 12,
-        minWidth: 140,
-        opacity: 1,
-        boxShadow: 'var(--nv-shadow-md)'
+        height: '100%',
+        display: 'grid',
+        gridTemplateRows: '1fr 18px',
+        gap: 8,
+        padding: '12px 12px 8px'
       }}
     >
-      <div style={{ color: 'var(--nv-text-secondary)', marginBottom: 4 }}>{bucket.label}</div>
-      <div style={{ color: 'var(--nv-text-primary)', fontWeight: 600 }}>
-        {bucket.count.toLocaleString()} packets
-      </div>
-      {bucket.count > 0 && (
-        <div style={{ color: colorFor(bucket.dominantProtocol), marginTop: 2, fontSize: 11 }}>
-          dominant: {bucket.dominantProtocol}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── X-axis tick — only show every 10th label to avoid crowding ───────────────
-
-interface TickProps {
-  x?: number | string
-  y?: number | string
-  payload?: { value: string; index: number }
-}
-
-function XAxisTick({ x = 0, y = 0, payload }: TickProps): React.JSX.Element | null {
-  const numX = typeof x === 'string' ? parseFloat(x) : x
-  const numY = typeof y === 'string' ? parseFloat(y) : y
-  if (!payload) return null
-  // Show label every 10 buckets
-  if (payload.index % 10 !== 0 && payload.index !== BUCKET_COUNT - 1) return null
-  return (
-    <text
-      x={numX}
-      y={(numY ?? 0) + 10}
-      textAnchor="middle"
-      style={{ fontFamily: 'var(--font-data)', fontSize: 10, fill: 'var(--nv-text-tertiary)' }}
-    >
-      {payload.value}
-    </text>
-  )
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
-/**
- * Packet flow timeline — 60 one-second buckets as a bar chart.
- * Req 22.1–22.6, 16.3, 24.1
- */
-export function PacketFlowTimeline(): React.JSX.Element {
-  const filteredPackets = useNetVisStore((s) => s.filteredPackets)
-  const setFilter = useNetVisStore((s) => s.setFilter)
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  const buckets = useMemo(
-    () =>
-      buildBuckets(filteredPackets.map((p) => ({ timestamp: p.timestamp, protocol: p.protocol }))),
-    [filteredPackets]
-  )
-
-  // Scroll to keep latest bucket visible (Req 22.2)
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
-    }
-  }, [buckets])
-
-  // ── Chart + accessible table ─────────────────────────────────────────────
-
-  const chartConfig: ChartConfig = Object.fromEntries(
-    Object.keys(PROTOCOL_COLORS).map((k) => [k, { label: k, color: PROTOCOL_COLORS[k as keyof typeof PROTOCOL_COLORS].color }])
-  )
-
-  return (
-    <VisualizationPanel
-      title="Packet Flow Timeline"
-      ariaLabel={`Packet flow over the last ${BUCKET_COUNT} seconds`}
-      empty={filteredPackets.length === 0}
-    >
-      {/* Scrollable chart container — keeps latest bucket visible */}
-      <div ref={scrollRef} style={{ overflowX: 'auto', overflowY: 'hidden' }} aria-hidden>
-        <div style={{ width: Math.max(buckets.length * 14, 400), height: 120 }}>
-          <ChartContainer config={chartConfig} style={{ height: 120 }}>
-            <ChartBarChart
-              data={buckets}
-              margin={{ top: 4, right: 4, bottom: 20, left: 0 }}
-              barCategoryGap={1}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${BUCKET_COUNT}, minmax(5px, 1fr))`,
+          alignItems: 'end',
+          gap: 3,
+          minHeight: 0
+        }}
+      >
+        {buckets.map((bucket) => {
+          const filter = timeRangeFilter(bucket.startMs)
+          const isActive = filterExpression.trim() === filter
+          return (
+            <button
+              key={bucket.startMs}
+              type="button"
+              title={`${bucket.label}: ${bucket.count} packets`}
+              aria-label={`Filter to ${bucket.label}, ${bucket.count} packets`}
+              aria-pressed={isActive}
+              onClick={() => setFilter(isActive ? '' : filter)}
+              className="nv-focus"
+              style={{
+                height: '100%',
+                minWidth: 0,
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'center',
+                border: isActive ? '1px solid var(--nv-text-primary)' : '1px solid transparent',
+                borderRadius: 'var(--nv-radius-sm)',
+                backgroundColor: isActive ? 'var(--nv-bg-surface-3)' : 'transparent',
+                padding: '2px 1px',
+                cursor: 'pointer'
+              }}
             >
-              <ChartXAxis
-                dataKey="label"
-                tick={(props: unknown) => <XAxisTick {...(props as TickProps)} />}
-              />
-              <ChartYAxis hide />
-              <ChartTooltip content={<TimelineTooltipCustom />} cursor={{ fill: 'var(--nv-bg-surface-3)' }} />
-              <ChartBar
-                dataKey="count"
-                radius={[2, 2, 0, 0]}
-                isAnimationActive={false}
-                onClick={(data: unknown) => {
-                  if (!data || typeof data !== 'object' || !('payload' in data)) return
-                  const payload = (data as { payload?: unknown }).payload
-                  if (!payload || typeof payload !== 'object' || !('startMs' in payload)) return
-                  const startMs = (payload as { startMs: number }).startMs
-                  setFilter(timeRangeFilter(startMs))
+              <span
+                aria-hidden
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  height: `${Math.max(4, (bucket.count / maxCount) * 100)}%`,
+                  borderRadius: '2px 2px 0 0',
+                  backgroundColor: colorFor(bucket.dominantProtocol),
+                  opacity: bucket.count === 0 ? 0.18 : 0.88
                 }}
-                style={{ cursor: 'pointer' }}
-              >
-                {buckets.map((bucket) => (
-                  <ChartCell
-                    key={bucket.startMs}
-                    fill={colorFor(bucket.dominantProtocol)}
-                    opacity={bucket.count === 0 ? 0.15 : 0.85}
-                  />
-                ))}
-              </ChartBar>
-            </ChartBarChart>
-          </ChartContainer>
-        </div>
+              />
+            </button>
+          )
+        })}
       </div>
-
-      {/* Accessible data table — WCAG 2.1 AA */}
-      <details style={{ marginTop: 2 }}>
-        <summary
-          style={{
-            fontSize: 11,
-            fontFamily: 'var(--font-ui)',
-            color: 'var(--nv-text-tertiary)',
-            cursor: 'pointer',
-            userSelect: 'none',
-            listStyle: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4
-          }}
-        >
-          <span aria-hidden>▸</span> Show data table
-        </summary>
-        <div style={{ maxHeight: 160, overflowY: 'auto', marginTop: 4 }}>
-          <table
-            aria-label="Packet flow timeline data"
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 11,
-              fontFamily: 'var(--font-ui)'
-            }}
-          >
-            <caption className="sr-only">
-              Packet counts per second over the last {BUCKET_COUNT} seconds
-            </caption>
-            <thead>
-              <tr>
-                <th
-                  scope="col"
-                  style={{
-                    textAlign: 'left',
-                    padding: '2px 6px',
-                    color: 'var(--nv-text-tertiary)',
-                    fontWeight: 500,
-                    borderBottom: '1px solid var(--nv-border-subtle)',
-                    position: 'sticky',
-                    top: 0,
-                    backgroundColor: 'var(--nv-bg-surface-1)'
-                  }}
-                >
-                  Time
-                </th>
-                <th
-                  scope="col"
-                  style={{
-                    textAlign: 'right',
-                    padding: '2px 6px',
-                    color: 'var(--nv-text-tertiary)',
-                    fontWeight: 500,
-                    borderBottom: '1px solid var(--nv-border-subtle)',
-                    position: 'sticky',
-                    top: 0,
-                    backgroundColor: 'var(--nv-bg-surface-1)'
-                  }}
-                >
-                  Packets
-                </th>
-                <th
-                  scope="col"
-                  style={{
-                    textAlign: 'left',
-                    padding: '2px 6px',
-                    color: 'var(--nv-text-tertiary)',
-                    fontWeight: 500,
-                    borderBottom: '1px solid var(--nv-border-subtle)',
-                    position: 'sticky',
-                    top: 0,
-                    backgroundColor: 'var(--nv-bg-surface-1)'
-                  }}
-                >
-                  Dominant
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {buckets
-                .filter((b) => b.count > 0)
-                .map((bucket) => (
-                  <tr key={bucket.startMs}>
-                    <td style={{ padding: 0 }} colSpan={3}>
-                      <button
-                        type="button"
-                        onClick={() => setFilter(timeRangeFilter(bucket.startMs))}
-                        aria-label={`Filter to ${bucket.label}: ${bucket.count} packets`}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr auto 1fr',
-                          width: '100%',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          padding: 0
-                        }}
-                      >
-                        <span
-                          style={{
-                            padding: '3px 6px',
-                            color: 'var(--nv-text-secondary)',
-                            fontFamily: 'var(--font-data)',
-                            fontSize: 11
-                          }}
-                        >
-                          {bucket.label}
-                        </span>
-                        <span
-                          style={{
-                            padding: '3px 6px',
-                            textAlign: 'right',
-                            color: 'var(--nv-text-primary)',
-                            fontFamily: 'var(--font-data)',
-                            fontSize: 11
-                          }}
-                        >
-                          {bucket.count.toLocaleString()}
-                        </span>
-                        <span
-                          style={{
-                            padding: '3px 6px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 5
-                          }}
-                        >
-                          <span
-                            aria-hidden
-                            style={{
-                              width: 7,
-                              height: 7,
-                              borderRadius: 2,
-                              backgroundColor: colorFor(bucket.dominantProtocol),
-                              flexShrink: 0,
-                              display: 'inline-block'
-                            }}
-                          />
-                          <span style={{ color: 'var(--nv-text-secondary)', fontSize: 11 }}>
-                            {bucket.dominantProtocol}
-                          </span>
-                        </span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
-    </VisualizationPanel>
+      <div
+        aria-hidden
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          color: 'var(--nv-text-tertiary)',
+          fontFamily: 'var(--font-data)',
+          fontSize: 10
+        }}
+      >
+        <span>{buckets[0]?.label}</span>
+        <span>{buckets[buckets.length - 1]?.label}</span>
+      </div>
+    </div>
   )
 }

@@ -76,6 +76,32 @@ describe('CaptureControls feedback', () => {
     })
   })
 
+  it('does not mark live capture unavailable while interface detection is still running', () => {
+    mockElectronAPI()
+    useNetVisStore.setState({
+      interfaces: [],
+      activeInterface: null,
+      interfaceDetectionStatus: 'loading'
+    })
+
+    renderWithStore(<CaptureControls />)
+
+    expect(screen.getByRole('button', { name: 'Start live capture' })).toBeEnabled()
+  })
+
+  it('disables live capture after interface detection reports unavailable', () => {
+    mockElectronAPI()
+    useNetVisStore.setState({
+      interfaces: [],
+      activeInterface: null,
+      interfaceDetectionStatus: 'unavailable'
+    })
+
+    renderWithStore(<CaptureControls />)
+
+    expect(screen.getByRole('button', { name: 'Start live capture' })).toBeDisabled()
+  })
+
   it('shows a pending replay state while simulated replay is being started', async () => {
     const deferred = createDeferredPromise<void>()
     const api = mockElectronAPI({

@@ -44,7 +44,7 @@ beforeAll(() => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Parse a hex color like #3B82F6 into [r, g, b] */
+/** Parse a hex color like #4E9CE8 into [r, g, b] */
 function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace('#', '')
   const r = parseInt(clean.slice(0, 2), 16)

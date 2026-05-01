@@ -774,7 +774,7 @@ interface Parser {
 
 #### Anonymizer
 
-Runs synchronously after parsing. Holds a session-scoped HMAC key generated at startup. Replaces transport-layer payload bytes with `sha256(key || payload)[0..7]` hex. Anonymizes DNS answer IPs while preserving query names (Req 4.1, 4.4).
+Runs synchronously after parsing. Holds a session-scoped HMAC key generated at startup. Replaces transport-layer payload bytes with `HMAC-SHA256(key, namespace || payload)[0..7]` hex. Replaces renderer-visible IP/MAC addresses with deterministic session pseudonyms and anonymizes DNS answer IPs while preserving query names (Req 4.1, 4.4).
 
 ```typescript
 interface Anonymizer {

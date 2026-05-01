@@ -6,6 +6,9 @@ export default defineConfig({
     include: ['src/__tests__/**/*.{test,spec}.{ts,tsx}'],
     setupFiles: ['src/__tests__/renderer/setup.ts'],
     testTimeout: 30000,
+    pool: 'threads',
+    maxWorkers: 1,
+    minWorkers: 1,
     environmentMatchGlobs: [
       // Renderer tests run under jsdom so React components can be mounted
       ['src/__tests__/renderer/**/*.{test,spec}.{ts,tsx}', 'jsdom']

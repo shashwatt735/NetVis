@@ -31,6 +31,21 @@ type PendingCommand = {
   timeoutId: ReturnType<typeof setTimeout>
 }
 
+type CapDevice = {
+  name: string
+  description?: string
+  addresses?: Array<{ addr?: string }>
+}
+
+type InterfaceEnumerator = () => CapDevice[]
+
+function defaultInterfaceEnumerator(): CapDevice[] {
+  ensureNpcapDllPath()
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+  const { Cap } = require('cap') as { Cap: any }
+  return Cap.deviceList() as CapDevice[]
+}
+
 export class CaptureEngine extends EventEmitter {
   private static readonly COMMAND_TIMEOUT_MS = 30_000
   private supervisor: WorkerSupervisor
@@ -50,7 +65,10 @@ export class CaptureEngine extends EventEmitter {
     this.rebindWorker(worker)
   }
 
-  constructor(sendToRenderer: (packets: AnonPacket[]) => void) {
+  constructor(
+    sendToRenderer: (packets: AnonPacket[]) => void,
+    private readonly enumerateInterfaces: InterfaceEnumerator = defaultInterfaceEnumerator
+  ) {
     super()
     const workerPath = path.join(__dirname, 'capture-worker.js')
     this.supervisor = new WorkerSupervisor(workerPath)
@@ -168,32 +186,12 @@ export class CaptureEngine extends EventEmitter {
     // The cap native addon's pcap_dispatch background thread is not safe in worker_threads
     // on Windows with Npcap; running it on the main thread avoids the env assertion crash.
     try {
-      ensureNpcapDllPath()
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-      const { Cap } = require('cap') as { Cap: any }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const devices = Cap.deviceList() as Array<{
-        name: string
-        description?: string
-        addresses?: Array<{ addr?: string }>
-      }>
+      const devices = this.enumerateInterfaces()
       return {
         ok: true,
         interfaces: devices.map((d) => ({
           name: d.name,
-          displayName: (() => {
-            const base = d.description?.trim() || d.name
-            const ipv4Hints = (d.addresses ?? [])
-              .map((a) => a.addr)
-              .filter(
-                (addr): addr is string =>
-                  typeof addr === 'string' &&
-                  /^\d{1,3}(\.\d{1,3}){3}$/.test(addr) &&
-                  !addr.startsWith('169.254.')
-              )
-              .slice(0, 2)
-            return ipv4Hints.length > 0 ? `${base} (${ipv4Hints.join(', ')})` : base
-          })(),
+          displayName: d.description?.trim() || d.name,
           isUp: true
         }))
       }
@@ -289,6 +287,7 @@ export class CaptureEngine extends EventEmitter {
   on(event: 'packet', handler: (p: ParsedPacket) => void): this
   on(event: 'error', handler: (e: CaptureError) => void): this
   on(event: 'stopped', handler: () => void): this
+  on(event: 'capture-error', handler: (e: CaptureError) => void): this
   on(event: 'started-live', handler: (iface: string) => void): this
   on(event: 'started-file', handler: (filePath: string) => void): this
   on(event: 'started-simulated', handler: (filePath: string, speed: SpeedMultiplier) => void): this
@@ -299,6 +298,7 @@ export class CaptureEngine extends EventEmitter {
 
   once(event: 'packet', handler: (p: ParsedPacket) => void): this
   once(event: 'error', handler: (e: CaptureError) => void): this
+  once(event: 'capture-error', handler: (e: CaptureError) => void): this
   once(event: 'stopped', handler: () => void): this
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   once(event: string, handler: (...args: any[]) => void): this {
@@ -348,7 +348,13 @@ export class CaptureEngine extends EventEmitter {
         }
         break
       case 'error':
-        this.emit('error', (msg as { type: 'error'; error: CaptureError }).error)
+        {
+          const error = (msg as { type: 'error'; error: CaptureError }).error
+          this.emit('capture-error', error)
+          if (this.listenerCount('error') > 0) {
+            this.emit('error', error)
+          }
+        }
         // Runtime source errors do not carry requestId.
         // If an import is waiting on command-complete, fail it immediately to avoid UI hangs.
         this.rejectPendingCommandsWithPrefix('complete:', (msg as { type: 'error'; error: CaptureError }).error)
