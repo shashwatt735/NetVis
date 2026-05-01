@@ -30,8 +30,8 @@ electron.vite.config.*.mjs
 
 # Custom project files
 repomix-output.xml
-.kiro/**
-.vscode/**
+.kiro/
+.vscode/
 
 # Markdown files - exclude most, allow important docs
 *.md

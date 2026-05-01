@@ -32,18 +32,15 @@ See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the implementation stat
 
 ## Documentation Map
 
-| Document                                                                           | Purpose                                                                                 |
-| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                       | Process model, data flow, IPC, security boundaries, threading, and interface detection. |
-| [docs/PROJECT_DESIGN.md](docs/PROJECT_DESIGN.md)                                   | Product and system design overview for collaborators.                                   |
-| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)                                   | Current implementation status, verification, and document authority.                    |
-| [docs/BUGFIX_REFERENCE.md](docs/BUGFIX_REFERENCE.md)                               | Consolidated bugfix and hardening history.                                              |
-| [docs/UI_REFERENCE.md](docs/UI_REFERENCE.md)                                       | Consolidated UI, visualization, and responsive-layout reference.                        |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)                                 | Live capture, interface, import, and visualization troubleshooting.                     |
-| [docs/CODE_INDEX.md](docs/CODE_INDEX.md)                                           | Module inventory and test index.                                                        |
-| [.kiro/specs/netvis-core/requirements.md](.kiro/specs/netvis-core/requirements.md) | Canonical requirements.                                                                 |
-| [.kiro/specs/netvis-core/design.md](.kiro/specs/netvis-core/design.md)             | Canonical technical design.                                                             |
-| [.kiro/specs/netvis-core/tasks.md](.kiro/specs/netvis-core/tasks.md)               | Historical implementation task breakdown.                                               |
+| Document                                             | Purpose                                                                                 |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)         | Process model, data flow, IPC, security boundaries, threading, and interface detection. |
+| [docs/PROJECT_DESIGN.md](docs/PROJECT_DESIGN.md)     | Product and system design overview for collaborators.                                   |
+| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)     | Current implementation status, verification, and document authority.                    |
+| [docs/BUGFIX_REFERENCE.md](docs/BUGFIX_REFERENCE.md) | Consolidated bugfix and hardening history.                                              |
+| [docs/UI_REFERENCE.md](docs/UI_REFERENCE.md)         | Consolidated UI, visualization, and responsive-layout reference.                        |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)   | Live capture, interface, import, and visualization troubleshooting.                     |
+| [docs/CODE_INDEX.md](docs/CODE_INDEX.md)             | Module inventory and test index.                                                        |
 
 ## Requirements
 
