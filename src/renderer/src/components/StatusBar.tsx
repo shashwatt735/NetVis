@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import type { CaptureStatus } from '../../../shared/capture-types'
 import { useNetVisStore } from '../store'
+import { hideInterfaceAddress } from '../lib/interface-display'
 
 function modeLabel(status: CaptureStatus): string {
   switch (status.state) {
@@ -39,7 +40,7 @@ function dotColor(status: CaptureStatus): string {
 function sourceLabel(status: CaptureStatus, activeInterface: string | null, interfaces: { name: string; displayName: string }[]): string {
   const resolve = (raw: string): string => {
     const found = interfaces.find((iface) => iface.name === raw)
-    return found ? found.displayName : raw
+    return hideInterfaceAddress(found ? found.displayName : raw)
   }
   if (status.state === 'active') return resolve(status.iface)
   if (status.state === 'file' || status.state === 'simulated') {

@@ -99,7 +99,7 @@ describe('CaptureEngine interface enumeration', () => {
   it('returns interfaces on successful worker enumeration', async () => {
     await expect(engine.getInterfaces()).resolves.toEqual({
       ok: true,
-      interfaces: [{ name: 'eth0', displayName: 'Ethernet 0 (192.168.1.10)', isUp: true }]
+      interfaces: [{ name: 'eth0', displayName: 'Ethernet 0', isUp: true }]
     })
   })
 

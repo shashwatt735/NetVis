@@ -70,19 +70,7 @@ try {
         ok: true,
         interfaces: devices.map((d) => ({
           name: d.name,
-          displayName: (() => {
-            const base = d.description?.trim() || d.name
-            const ipv4Hints = (d.addresses ?? [])
-              .map((a) => a.addr)
-              .filter(
-                (addr): addr is string =>
-                  typeof addr === 'string' &&
-                  /^\d{1,3}(\.\d{1,3}){3}$/.test(addr) &&
-                  !addr.startsWith('169.254.')
-              )
-              .slice(0, 2)
-            return ipv4Hints.length > 0 ? `${base} (${ipv4Hints.join(', ')})` : base
-          })(),
+          displayName: d.description?.trim() || d.name,
           isUp: true // cap doesn't expose up/down; default to true
         }))
       }

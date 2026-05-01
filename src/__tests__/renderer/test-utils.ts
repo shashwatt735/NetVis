@@ -42,6 +42,7 @@ const STORE_INITIAL_STATE = {
   captureStatus: { state: 'idle' } as CaptureStatus,
   interfaces: [] as NetworkInterface[],
   activeInterface: null as string | null,
+  interfaceDetectionStatus: 'idle' as const,
   filterExpression: '',
   filterError: null as string | null,
   filteredPackets: [] as AnonPacket[],

@@ -50,6 +50,7 @@ export function CaptureControls(): React.JSX.Element {
   const setCaptureStatus = useNetVisStore((s) => s.setCaptureStatus)
   const activeInterface = useNetVisStore((s) => s.activeInterface)
   const interfaces = useNetVisStore((s) => s.interfaces)
+  const interfaceDetectionStatus = useNetVisStore((s) => s.interfaceDetectionStatus)
   const packets = useNetVisStore((s) => s.packets)
   const clearPackets = useNetVisStore((s) => s.clearPackets)
   const addPackets = useNetVisStore((s) => s.addPackets)
@@ -62,7 +63,8 @@ export function CaptureControls(): React.JSX.Element {
     captureStatus.state === 'active' ||
     captureStatus.state === 'file' ||
     captureStatus.state === 'simulated'
-  const liveCaptureUnavailable = interfaces.length === 0 && activeInterface === null
+  const liveCaptureUnavailable =
+    interfaceDetectionStatus === 'unavailable' && interfaces.length === 0 && activeInterface === null
   const isBusy = pendingAction !== null
   const controlButtonBaseStyle: React.CSSProperties = {
     minHeight: 30,

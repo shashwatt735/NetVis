@@ -10,6 +10,7 @@ import {
   summarizePacket
 } from '../lib/packet-analysis'
 import { displayLayerProtocol, formatFieldValue, getFieldHelp } from '../lib/field-help'
+import { hideInterfaceAddress } from '../lib/interface-display'
 import { PROTOCOL_COLORS, protocolColorKey } from '../constants/protocol-colors'
 import { useNetVisStore } from '../store'
 import { Button } from './ui/button'
@@ -470,7 +471,7 @@ function RunningState({ packets }: { packets: AnonPacket[] }): React.JSX.Element
   // Resolve interface display name
   const rawIface = captureStatus.state === 'active' ? captureStatus.iface : 'capture'
   const interfaceObj = interfaces.find((iface) => iface.name === rawIface)
-  const displayName = interfaceObj?.displayName ?? rawIface
+  const displayName = hideInterfaceAddress(interfaceObj?.displayName ?? rawIface)
 
   return (
     <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -107,9 +107,10 @@ export function ProtocolChart(): React.JSX.Element {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         gap: 7,
-        padding: 12
+        padding: 12,
+        overflowY: 'auto'
       }}
     >
       {entries.map((entry) => {

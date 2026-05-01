@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type React from 'react'
 import type { SpeedMultiplier } from '../../../shared/capture-types'
 import { useNetVisStore } from '../store'
+import { hideInterfaceAddress } from '../lib/interface-display'
 import { Button } from './ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { toast } from 'sonner'
@@ -41,6 +42,7 @@ export function CaptureToolbarActions(): React.JSX.Element {
   const captureStatus = useNetVisStore((s) => s.captureStatus)
   const activeInterface = useNetVisStore((s) => s.activeInterface)
   const interfaces = useNetVisStore((s) => s.interfaces)
+  const interfaceDetectionStatus = useNetVisStore((s) => s.interfaceDetectionStatus)
   const setCaptureStatus = useNetVisStore((s) => s.setCaptureStatus)
   const clearPackets = useNetVisStore((s) => s.clearPackets)
   const addPackets = useNetVisStore((s) => s.addPackets)
@@ -55,7 +57,8 @@ export function CaptureToolbarActions(): React.JSX.Element {
     captureStatus.state === 'active' ||
     captureStatus.state === 'file' ||
     captureStatus.state === 'simulated'
-  const liveCaptureUnavailable = interfaces.length === 0 && activeInterface === null
+  const liveCaptureUnavailable =
+    interfaceDetectionStatus === 'unavailable' && interfaces.length === 0 && activeInterface === null
   const isBusy = pendingAction !== null
   const hasPackets = packets.length > 0
 
@@ -97,7 +100,7 @@ export function CaptureToolbarActions(): React.JSX.Element {
 
       // Resolve interface display name for toast
       const interfaceObj = interfaces.find((iface) => iface.name === activeInterface)
-      const displayName = interfaceObj?.displayName ?? activeInterface
+      const displayName = hideInterfaceAddress(interfaceObj?.displayName ?? activeInterface)
 
       toast.success('Live capture starting', {
         description: `Listening on ${displayName}.`

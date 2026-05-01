@@ -13,6 +13,7 @@ import type {
 } from '../../../shared/capture-types'
 
 export type AppPage = 'capture' | 'learn' | 'challenges' | 'settings'
+export type InterfaceDetectionStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
 
 // ─── Store Shape ─────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ interface NetVisStore {
   captureStatus: CaptureStatus
   interfaces: NetworkInterface[]
   activeInterface: string | null
+  interfaceDetectionStatus: InterfaceDetectionStatus
 
   // Filter
   filterExpression: string
@@ -57,6 +59,7 @@ interface NetVisStore {
   setCaptureStatus(status: CaptureStatus): void
   setInterfaces(interfaces: NetworkInterface[]): void
   setActiveInterface(iface: string | null): void
+  setInterfaceDetectionStatus(status: InterfaceDetectionStatus): void
   setActivePage(page: AppPage): void
   goBack(): void
   setTheme(theme: Theme): void
@@ -147,6 +150,7 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
   captureStatus: { state: 'idle' },
   interfaces: [],
   activeInterface: null,
+  interfaceDetectionStatus: 'idle',
   filterExpression: '',
   filterError: null,
   filteredPackets: [],
@@ -247,6 +251,10 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
 
   setActiveInterface: (iface: string | null) => {
     set({ activeInterface: iface })
+  },
+
+  setInterfaceDetectionStatus: (status: InterfaceDetectionStatus) => {
+    set({ interfaceDetectionStatus: status })
   },
 
   setActivePage: (page: AppPage) => {

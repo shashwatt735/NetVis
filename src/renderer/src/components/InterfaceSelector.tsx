@@ -83,6 +83,7 @@ export function InterfaceSelector(): React.JSX.Element {
   const captureStatus = useNetVisStore((s) => s.captureStatus)
   const setInterfaces = useNetVisStore((s) => s.setInterfaces)
   const setActiveInterface = useNetVisStore((s) => s.setActiveInterface)
+  const setInterfaceDetectionStatus = useNetVisStore((s) => s.setInterfaceDetectionStatus)
   const [enumError, setEnumError] = useState<string | null>(null)
   const [platformHint, setPlatformHint] = useState<string | null>(null)
   const [isRetrying, setIsRetrying] = useState(false)
@@ -105,6 +106,7 @@ export function InterfaceSelector(): React.JSX.Element {
     // safe to call concurrently with pcap_dispatch and will crash the worker process.
     if (useNetVisStore.getState().captureStatus.state === 'active') return
 
+    setInterfaceDetectionStatus('loading')
     window.electronAPI
       .getInterfaces()
       .then((result) => {
@@ -115,6 +117,7 @@ export function InterfaceSelector(): React.JSX.Element {
           setEnumError(null)
           setPlatformHint(null)
           setInterfaces(sorted)
+          setInterfaceDetectionStatus(sorted.length > 0 ? 'ready' : 'unavailable')
           if (sorted.length === 0) {
             setActiveInterface(null)
           }
@@ -123,6 +126,7 @@ export function InterfaceSelector(): React.JSX.Element {
           setActiveInterface(null)
           setEnumError(result.error)
           setPlatformHint(result.platformHint ?? null)
+          setInterfaceDetectionStatus('unavailable')
           showUnavailableToast(result.error, result.platformHint ?? null)
           console.error('Interface enumeration failed:', result.error)
         }
@@ -135,6 +139,7 @@ export function InterfaceSelector(): React.JSX.Element {
         const message = err instanceof Error ? err.message : 'Unknown error'
         setEnumError(message)
         setPlatformHint(null)
+        setInterfaceDetectionStatus('unavailable')
         showUnavailableToast(message)
         console.error('Failed to enumerate interfaces:', err)
       })
@@ -147,7 +152,7 @@ export function InterfaceSelector(): React.JSX.Element {
       cancelled.value = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setActiveInterface, setInterfaces])
+  }, [setActiveInterface, setInterfaces, setInterfaceDetectionStatus])
 
   useEffect(() => {
     if (
@@ -168,6 +173,7 @@ export function InterfaceSelector(): React.JSX.Element {
     setIsRetrying(true)
     setEnumError(null)
     setPlatformHint(null)
+    setInterfaceDetectionStatus('loading')
     try {
       const result = await window.electronAPI.getInterfaces()
       if (result.ok) {
@@ -175,21 +181,26 @@ export function InterfaceSelector(): React.JSX.Element {
         setEnumError(null)
         setPlatformHint(null)
         setInterfaces(sorted)
+        setInterfaceDetectionStatus(sorted.length > 0 ? 'ready' : 'unavailable')
         if (sorted.length > 0) {
           toast.success('Interfaces found', {
             description: `${sorted.length} network interface${sorted.length > 1 ? 's' : ''} available.`
           })
+        } else {
+          setActiveInterface(null)
         }
       } else {
         setInterfaces([])
         setActiveInterface(null)
         setEnumError(result.error)
         setPlatformHint(result.platformHint ?? null)
+        setInterfaceDetectionStatus('unavailable')
         showUnavailableToast(result.error, result.platformHint ?? null)
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       setEnumError(message)
+      setInterfaceDetectionStatus('unavailable')
       showUnavailableToast(message)
     } finally {
       setIsRetrying(false)
