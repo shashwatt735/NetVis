@@ -32,7 +32,7 @@ export function TrafficSummaryCard({
                 : 'var(--nv-text-tertiary)'
     const trendLabel = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'
 
-    const borderColor = proto ? PROTOCOL_COLORS[protocolColorKey(proto)].color : 'var(--proto-tcp)'
+    const borderColor = proto ? PROTOCOL_COLORS[protocolColorKey(proto)].color : 'var(--nv-accent)'
 
     return (
         <div

@@ -38,7 +38,7 @@ export function ProtocolBadge({ proto, size = 'md' }: ProtocolBadgeProps): React
                 fontSize,
                 fontWeight: 700,
                 padding,
-                borderRadius: 'var(--nv-radius-sm)',
+                borderRadius: 'var(--nv-radius-md)',
                 border: `1px solid ${c.border}`,
                 background: c.dim,
                 color: c.color,

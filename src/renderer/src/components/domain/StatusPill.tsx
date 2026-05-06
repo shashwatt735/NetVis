@@ -36,9 +36,9 @@ const STATUS_CONFIG: Record<
         icon: <XCircle size={12} />
     },
     info: {
-        color: 'var(--proto-tcp)',
-        bg: 'var(--proto-tcp-dim)',
-        border: 'var(--proto-tcp-border)',
+        color: 'var(--nv-accent)',
+        bg: 'var(--nv-accent-dim)',
+        border: 'var(--nv-accent-border)',
         icon: <Info size={12} />
     }
 }

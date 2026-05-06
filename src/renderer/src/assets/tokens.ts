@@ -74,42 +74,40 @@ export const RADIUS_TOKENS = [
 export const TYPE_SCALE = [
   {
     role: 'Display',
-    spec: 'IBM Plex Sans 600 · 28px · -0.5px',
+    spec: 'Sora 700 · 28px',
     sample: 'Packet Inspector',
     style: {
       fontFamily: 'var(--font-ui)',
       fontSize: '28px',
-      fontWeight: 600,
-      letterSpacing: '-0.5px'
+      fontWeight: 700
     }
   },
   {
     role: 'Title',
-    spec: 'IBM Plex Sans 600 · 18px · -0.3px',
+    spec: 'Sora 650 · 18px',
     sample: 'Protocol Distribution',
     style: {
       fontFamily: 'var(--font-ui)',
       fontSize: '18px',
-      fontWeight: 600,
-      letterSpacing: '-0.3px'
+      fontWeight: 650
     }
   },
   {
     role: 'Section head',
-    spec: 'IBM Plex Sans 500 · 13px · 0',
+    spec: 'Sora 600 · 13px · 0',
     sample: 'Ethernet Layer — Frame Header',
-    style: { fontFamily: 'var(--font-ui)', fontSize: '13px', fontWeight: 500 }
+    style: { fontFamily: 'var(--font-ui)', fontSize: '13px', fontWeight: 600 }
   },
   {
     role: 'Body',
-    spec: 'IBM Plex Sans 400 · 13px · 1.6 lh',
+    spec: 'Sora 400 · 13px · 1.6 lh',
     sample: "The Time to Live field limits a packet's lifetime. Each router decrements by one.",
     style: { fontFamily: 'var(--font-ui)', fontSize: '13px', fontWeight: 400, lineHeight: 1.6 },
     secondary: true
   },
   {
     role: 'Label / UI',
-    spec: 'IBM Plex Sans 400 · 11px · 0.04em',
+    spec: 'Sora 400 · 11px · 0.04em',
     sample: 'INTERFACE · CAPTURE · FILTER',
     style: {
       fontFamily: 'var(--font-ui)',
@@ -252,37 +250,37 @@ export const CONTRAST_PAIRS = [
 
 export const SURFACE_TOKENS = {
   dark: {
-    base: { hex: '#0d0d0f', token: '--nv-bg-base', use: 'Page background · lowest layer' },
+    base: { hex: '#111113', token: '--nv-bg-base', use: 'Page background · lowest layer' },
     surface1: {
-      hex: '#111114',
+      hex: '#18181c',
       token: '--nv-bg-surface-1',
       use: 'Panel backgrounds · sidebars · main content'
     },
     surface2: {
-      hex: '#16161a',
+      hex: '#222229',
       token: '--nv-bg-surface-2',
       use: 'Toolbars · header rows · raised cards'
     },
     surface3: {
-      hex: '#1c1c22',
+      hex: '#2c2c34',
       token: '--nv-bg-surface-3',
       use: 'Hover states · pressed states · tags'
     }
   },
   light: {
-    base: { hex: '#f6f8fa', token: '--nv-bg-base', use: 'Page background · lowest layer' },
+    base: { hex: '#f7f5f2', token: '--nv-bg-base', use: 'Page background · lowest layer' },
     surface1: {
-      hex: '#ffffff',
+      hex: '#fefcfa',
       token: '--nv-bg-surface-1',
       use: 'Panel backgrounds · sidebars · main content'
     },
     surface2: {
-      hex: '#f0f2f5',
+      hex: '#f0ece6',
       token: '--nv-bg-surface-2',
       use: 'Toolbars · header rows · raised cards'
     },
     surface3: {
-      hex: '#e8eaed',
+      hex: '#e6e0d8',
       token: '--nv-bg-surface-3',
       use: 'Hover states · pressed states · tags'
     }

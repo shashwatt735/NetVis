@@ -51,14 +51,25 @@ function ChallengeCard({
         gap: 12,
         padding: 18,
         border: isCompleted
-          ? '2px solid var(--proto-dns)'
+          ? '2px solid var(--nv-status-success)'
           : `1px solid ${isActive ? token.color : 'var(--nv-border-subtle)'}`,
         borderRadius: 'var(--nv-radius-lg)',
         backgroundColor: isActive
           ? token.dim
           : isCompleted
-            ? 'var(--proto-dns-dim)'
-            : 'var(--nv-bg-surface-1)'
+            ? 'color-mix(in srgb, var(--nv-status-success) 10%, transparent)'
+            : 'var(--nv-bg-surface-1)',
+        boxShadow: 'var(--nv-shadow-sm)',
+        transition:
+          'transform var(--nv-duration-fast) var(--nv-ease-enter), box-shadow var(--nv-duration-fast) var(--nv-ease-enter), border-color var(--nv-duration-fast) var(--nv-ease-enter)'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-1px)'
+        e.currentTarget.style.boxShadow = 'var(--nv-shadow-md)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)'
+        e.currentTarget.style.boxShadow = 'var(--nv-shadow-sm)'
       }}
     >
       <div
@@ -104,9 +115,9 @@ function ChallengeCard({
               gap: 4,
               padding: '2px 8px',
               borderRadius: 'var(--nv-radius-sm)',
-              backgroundColor: 'var(--proto-dns-dim)',
-              border: '1px solid var(--proto-dns-border)',
-              color: 'var(--proto-dns)',
+              backgroundColor: 'color-mix(in srgb, var(--nv-status-success) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--nv-status-success) 30%, transparent)',
+              color: 'var(--nv-status-success)',
               fontSize: 11,
               fontWeight: 600,
               flexShrink: 0
@@ -156,6 +167,78 @@ function ChallengeCard({
         <ArrowRight size={14} aria-hidden />
       </Button>
     </article>
+  )
+}
+
+function ChallengeProgressHeader({
+  title,
+  completed,
+  total
+}: {
+  title: string
+  completed: number
+  total: number
+}): React.JSX.Element {
+  const percent = total > 0 ? (completed / total) * 100 : 0
+  const label = title.charAt(0).toUpperCase() + title.slice(1)
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 14
+      }}
+    >
+      <h2
+        style={{
+          margin: 0,
+          minWidth: 96,
+          fontSize: 16,
+          fontWeight: 650,
+          color: 'var(--nv-text-primary)'
+        }}
+      >
+        {label}
+      </h2>
+      <div
+        role="progressbar"
+        aria-label={`${label} challenge progress`}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={completed}
+        style={{
+          flex: 1,
+          height: 4,
+          minWidth: 80,
+          borderRadius: 999,
+          backgroundColor: 'var(--nv-bg-surface-3)',
+          overflow: 'hidden'
+        }}
+      >
+        <div
+          style={{
+            width: `${percent}%`,
+            height: '100%',
+            borderRadius: 999,
+            backgroundColor: 'var(--nv-status-success)',
+            transition: 'width var(--nv-duration-fast) var(--nv-ease-enter)'
+          }}
+        />
+      </div>
+      <span
+        style={{
+          minWidth: 44,
+          color: 'var(--nv-text-secondary)',
+          fontFamily: 'var(--font-data)',
+          fontSize: 12,
+          textAlign: 'right'
+        }}
+      >
+        {completed} / {total}
+      </span>
+    </div>
   )
 }
 
@@ -254,32 +337,14 @@ export function ChallengesPage(): React.JSX.Element {
           { title: 'intermediate', items: intermediate }
         ].map((section) => (
           <section key={section.title} style={{ marginBottom: 32 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                gap: 12,
-                marginBottom: 14
-              }}
-            >
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--nv-text-primary)' }}>
-                {section.title.charAt(0).toUpperCase() + section.title.slice(1)}
-              </h2>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '3px 10px',
-                borderRadius: 'var(--nv-radius-sm)',
-                backgroundColor: 'var(--nv-bg-surface-2)',
-                border: '1px solid var(--nv-border-subtle)',
-                color: 'var(--nv-text-secondary)',
-                fontSize: 12,
-                fontWeight: 500
-              }}>
-                {section.items.length} {section.items.length === 1 ? 'Challenge' : 'Challenges'}
-              </span>
-            </div>
+            <ChallengeProgressHeader
+              title={section.title}
+              total={section.items.length}
+              completed={
+                section.items.filter((challenge) => completedChallengeIds.includes(challenge.id))
+                  .length
+              }
+            />
 
             <div
               style={{

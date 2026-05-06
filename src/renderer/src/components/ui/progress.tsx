@@ -10,7 +10,7 @@ function Progress({
   ...props
 }: React.ComponentProps<typeof ProgressPrimitive.Root>) {
   const progressStyle: React.CSSProperties = {
-    backgroundColor: 'var(--progress-track-color, var(--proto-tcp-dim))',
+    backgroundColor: 'var(--progress-track-color, var(--nv-accent-dim))',
     ...style
   }
 
@@ -27,7 +27,7 @@ function Progress({
         style={{
           transform: `translateX(-${100 - (value || 0)}%)`,
           // Support --progress-color custom property for protocol-specific progress bars
-          backgroundColor: 'var(--progress-color, var(--primary))'
+          backgroundColor: 'var(--progress-color, var(--nv-accent))'
         }}
       />
     </ProgressPrimitive.Root>

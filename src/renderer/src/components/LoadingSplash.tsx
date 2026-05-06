@@ -102,7 +102,7 @@ export function LoadingSplash({ isReady, onComplete }: LoadingSplashProps): Reac
             aria-hidden="true"
           >
             {/* Center node */}
-            <circle cx="24" cy="24" r="4" fill="var(--proto-tcp)" opacity="0.9" />
+            <circle cx="24" cy="24" r="4" fill="var(--nv-accent)" opacity="0.9" />
             {/* Outer nodes */}
             <circle cx="12" cy="12" r="3" fill="var(--proto-udp)" opacity="0.8" />
             <circle cx="36" cy="12" r="3" fill="var(--proto-dns)" opacity="0.8" />
@@ -153,7 +153,7 @@ export function LoadingSplash({ isReady, onComplete }: LoadingSplashProps): Reac
               position: 'absolute',
               inset: 0,
               borderRadius: 'inherit',
-              border: '2px solid var(--proto-tcp)',
+              border: '2px solid var(--nv-accent)',
               opacity: 0,
               animation: 'pulse-ring 2s var(--nv-ease-spring) infinite'
             }}
@@ -208,7 +208,7 @@ export function LoadingSplash({ isReady, onComplete }: LoadingSplashProps): Reac
               width: 6,
               height: 6,
               borderRadius: '50%',
-              backgroundColor: 'var(--proto-tcp)',
+              backgroundColor: 'var(--nv-accent)',
               animation: 'dot-pulse 1.4s ease-in-out infinite',
               animationDelay: '0s'
             }}

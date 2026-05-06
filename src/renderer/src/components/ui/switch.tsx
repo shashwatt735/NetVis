@@ -12,13 +12,13 @@ function Switch({ className, style, ...props }: React.ComponentProps<typeof Swit
         className
       )}
       style={{
-        backgroundColor: props.checked ? 'var(--primary)' : 'var(--switch-background)',
+        backgroundColor: props.checked ? 'var(--nv-accent)' : 'var(--switch-background)',
         ...style
       }}
       onFocus={(e) => {
-        e.currentTarget.style.outline = '2px solid var(--proto-tcp)'
+        e.currentTarget.style.outline = '2px solid var(--nv-accent)'
         e.currentTarget.style.outlineOffset = '2px'
-        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(78, 156, 232, 0.5)'
+        e.currentTarget.style.boxShadow = '0 0 0 3px var(--nv-accent-dim)'
       }}
       onBlur={(e) => {
         e.currentTarget.style.outline = 'none'
@@ -32,7 +32,7 @@ function Switch({ className, style, ...props }: React.ComponentProps<typeof Swit
           'pointer-events-none block size-4 rounded-full ring-0 transition-transform data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0'
         )}
         style={{
-          backgroundColor: props.checked ? 'var(--primary-foreground)' : 'var(--card)'
+          backgroundColor: props.checked ? 'var(--nv-text-inverse)' : 'var(--card)'
         }}
       />
     </SwitchPrimitive.Root>

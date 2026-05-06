@@ -22,14 +22,14 @@ export function CaptureActiveIndicator(): React.JSX.Element {
             label: 'File',
             ariaLabel: 'File playback active',
             title: 'File playback active',
-            color: 'var(--proto-tcp)'
+            color: 'var(--nv-accent)'
           }
         : captureStatus.state === 'simulated'
           ? {
               label: 'Replay',
               ariaLabel: `Simulated replay active at ${captureStatus.speed}x speed`,
               title: `Simulated replay active at ${captureStatus.speed}x speed`,
-              color: 'var(--proto-dns)'
+              color: 'var(--nv-accent)'
             }
           : {
               label: 'Active',

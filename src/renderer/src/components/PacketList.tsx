@@ -186,7 +186,7 @@ function PacketListHeader(): React.JSX.Element {
         height: 28,
         padding: '0 8px',
         gap: 14,
-        backgroundColor: 'var(--nv-bg-surface-2)',
+        backgroundColor: 'var(--nv-panel-header-bg)',
         borderBottom: '1px solid var(--nv-border-default)',
         flexShrink: 0
       }}

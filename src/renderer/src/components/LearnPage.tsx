@@ -224,9 +224,9 @@ function AnimationSlot({
             alignItems: 'center',
             padding: '0 10px',
             borderRadius: 'var(--nv-radius-md)',
-            border: '1px solid var(--proto-tcp-border)',
-            color: 'var(--proto-tcp)',
-            backgroundColor: 'var(--proto-tcp-dim)',
+            border: '1px solid var(--nv-accent-border)',
+            color: 'var(--nv-accent)',
+            backgroundColor: 'var(--nv-accent-dim)',
             fontSize: 12
           }}
         >

@@ -91,7 +91,7 @@ function SheetContent({
             cursor: 'pointer'
           }}
           onFocus={(e) => {
-            e.currentTarget.style.outline = '2px solid var(--proto-tcp)'
+            e.currentTarget.style.outline = '2px solid var(--nv-accent)'
             e.currentTarget.style.outlineOffset = '2px'
           }}
           onBlur={(e) => {

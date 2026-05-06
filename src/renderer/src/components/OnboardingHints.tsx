@@ -222,7 +222,7 @@ export function OnboardingHints(): React.JSX.Element | null {
         width: 320,
         maxWidth: 'calc(100vw - 36px)',
         padding: 14,
-        border: '1px solid var(--proto-tcp-border)',
+        border: '1px solid var(--nv-accent-border)',
         borderRadius: 'var(--nv-radius-lg)',
         backgroundColor: 'var(--nv-bg-surface-1)',
         boxShadow: 'var(--nv-shadow-overlay)',
@@ -240,8 +240,8 @@ export function OnboardingHints(): React.JSX.Element | null {
             display: 'grid',
             placeItems: 'center',
             borderRadius: 'var(--nv-radius-md)',
-            backgroundColor: 'var(--proto-tcp-dim)',
-            color: 'var(--proto-tcp)'
+            backgroundColor: 'var(--nv-accent-dim)',
+            color: 'var(--nv-accent)'
           }}
         >
           <Icon size={16} aria-hidden />

@@ -3,10 +3,10 @@
 
 :root {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
-  --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
+  --background: #f7f5f2;
+  --foreground: #1a1917;
+  --card: #fefcfa;
+  --card-foreground: #1a1917;
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: #030213;
@@ -15,8 +15,8 @@
   --secondary-foreground: #030213;
   --muted: #ececf0;
   --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
+  --accent: #f0ece6;
+  --accent-foreground: #1a1917;
   --destructive: #d4183d;
   --destructive-foreground: #ffffff;
   --border: rgba(0, 0, 0, 0.1);
@@ -77,27 +77,30 @@
   /* Semantic color aliases used in components */
   --color-live: #1a7f37;    /* active capture indicator — same as status-success in light */
   --color-error: #cf222e;   /* destructive actions and error states */
-  --color-idle: #8c959f;    /* idle/stopped state — same as text-tertiary in light */
+  --color-idle: #8c8480;    /* idle/stopped state, same as text-tertiary in light */
 
   /* Accent — used for active/selected states in interactive components */
-  --nv-accent: #4e9ce8;
-  --nv-accent-dim: rgba(78, 156, 232, 0.12);
+  --nv-accent: #0d9488;
+  --nv-accent-hover: #0f766e;
+  --nv-accent-dim: rgba(13, 148, 136, 0.1);
+  --nv-accent-border: rgba(13, 148, 136, 0.28);
 
   /* Light mode surfaces */
-  --nv-bg-base: #f6f8fa;
-  --nv-bg-surface-1: #ffffff;
-  --nv-bg-surface-2: #f0f2f5;
-  --nv-bg-surface-3: #e8eaed;
+  --nv-bg-base: #f7f5f2;
+  --nv-bg-surface-1: #fefcfa;
+  --nv-bg-surface-2: #f0ece6;
+  --nv-bg-surface-3: #e6e0d8;
+  --nv-panel-header-bg: #f0ece6;
   --nv-border-subtle: rgba(0, 0, 0, 0.06);
   --nv-border-default: rgba(0, 0, 0, 0.12);
   --nv-border-emphasis: rgba(0, 0, 0, 0.24);
-  --nv-text-primary: #1c2128;
-  --nv-text-secondary: #57606a;
-  --nv-text-tertiary: #8c959f;
+  --nv-text-primary: #1a1917;
+  --nv-text-secondary: #5c5650;
+  --nv-text-tertiary: #8c8480;
   --nv-text-inverse: #ffffff;
 
   /* Font families */
-  --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-ui: 'Sora', system-ui, sans-serif;
   --font-data: 'JetBrains Mono', 'Courier New', monospace;
 
   /* Spacing */
@@ -132,9 +135,18 @@
   --nv-text-body: 15px;
   --nv-text-label: 13px;
   --nv-text-mono: 13px;
+  --nv-text-xs: 11px;
+  --nv-text-sm: 12px;
+  --nv-text-base: 14px;
+  --nv-text-md: 15px;
+  --nv-text-lg: 18px;
+  --nv-text-xl: 22px;
+  --nv-text-2xl: 28px;
+  --nv-text-3xl: 36px;
   --nv-panel-padding: 20px;
   --nv-row-height: 36px;
   --nv-control-height: 32px;
+  --nv-titlebar-height: 40px;
   --nv-inset-inline: 14px;  /* horizontal inset for buttons, panel headers, table cells */
   --nv-gap-inline: 8px;
   --nv-gap-section: 24px;
@@ -160,10 +172,10 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
+  --background: #111113;
+  --foreground: #d0d0dc;
+  --card: #151518;
+  --card-foreground: #d0d0dc;
   --popover: oklch(0.145 0 0);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.985 0 0);
@@ -198,17 +210,18 @@
   --sidebar-ring: oklch(0.439 0 0);
 
   /* Dark mode surfaces */
-  --nv-bg-base: #0d0d0f;
-  --nv-bg-surface-1: #111114;
-  --nv-bg-surface-2: #16161a;
-  --nv-bg-surface-3: #1c1c22;
-  --nv-border-subtle: rgba(255, 255, 255, 0.06);
+  --nv-bg-base: #111113;
+  --nv-bg-surface-1: #18181c;
+  --nv-bg-surface-2: #222229;
+  --nv-bg-surface-3: #2c2c34;
+  --nv-panel-header-bg: #202026;
+  --nv-border-subtle: rgba(255, 255, 255, 0.09);
   --nv-border-default: rgba(255, 255, 255, 0.12);
   --nv-border-emphasis: rgba(255, 255, 255, 0.24);
-  --nv-text-primary: #e8e8f0;
+  --nv-text-primary: #d0d0dc;
   --nv-text-secondary: #8a8a9a;
-  --nv-text-tertiary: #484854;
-  --nv-text-inverse: #0d0d0f;
+  --nv-text-tertiary: #6a6a78;
+  --nv-text-inverse: #111113;
 
   /* Status (dark – brighter for dark surfaces) */
   --nv-status-success: #3fb950;
@@ -218,11 +231,13 @@
   /* Semantic color aliases (dark overrides) */
   --color-live: #3fb950;
   --color-error: #f85149;
-  --color-idle: #484854;
+  --color-idle: #6a6a78;
 
   /* Accent (dark) */
-  --nv-accent: #4e9ce8;
-  --nv-accent-dim: rgba(78, 156, 232, 0.15);
+  --nv-accent: #2dd4bf;
+  --nv-accent-hover: #5eead4;
+  --nv-accent-dim: rgba(45, 212, 191, 0.15);
+  --nv-accent-border: rgba(45, 212, 191, 0.32);
 
   /* ─── Shadow Tokens (dark – stronger) ─── */
   --nv-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -232,27 +247,27 @@
 }
 
 .warm-dark {
-  --background: #0f0d0c;
-  --foreground: #ede8e2;
-  --card: #151210;
-  --card-foreground: #ede8e2;
-  --popover: #151210;
-  --popover-foreground: #ede8e2;
-  --primary: #ede8e2;
-  --primary-foreground: #0f0d0c;
+  --background: #131110;
+  --foreground: #d4cfc8;
+  --card: #1a1714;
+  --card-foreground: #d4cfc8;
+  --popover: #1a1714;
+  --popover-foreground: #d4cfc8;
+  --primary: #d4cfc8;
+  --primary-foreground: #131110;
   --secondary: #221c18;
-  --secondary-foreground: #ede8e2;
+  --secondary-foreground: #d4cfc8;
   --muted: #1b1614;
-  --muted-foreground: #8c8278;
+  --muted-foreground: #a89e96;
   --accent: #221c18;
-  --accent-foreground: #ede8e2;
+  --accent-foreground: #d4cfc8;
   --destructive: oklch(0.396 0.141 25.723);
   --destructive-foreground: oklch(0.637 0.237 25.331);
   --border: rgba(255, 255, 255, 0.1);
   --input: #221c18;
   --input-background: #1b1614;
   --switch-background: #342820;
-  --ring: #564e48;
+  --ring: #7d7269;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
   --chart-1: oklch(0.488 0.243 264.376);
@@ -260,27 +275,28 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #0f0d0c;
-  --sidebar-foreground: #ede8e2;
+  --sidebar: #131110;
+  --sidebar-foreground: #d4cfc8;
   --sidebar-primary: #d4824a;
-  --sidebar-primary-foreground: #ede8e2;
+  --sidebar-primary-foreground: #d4cfc8;
   --sidebar-accent: #221c18;
-  --sidebar-accent-foreground: #ede8e2;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #564e48;
+  --sidebar-accent-foreground: #d4cfc8;
+  --sidebar-border: rgba(255, 255, 255, 0.14);
+  --sidebar-ring: #7d7269;
 
   /* Warm-dark mode surfaces */
-  --nv-bg-base: #0f0d0c;
-  --nv-bg-surface-1: #151210;
-  --nv-bg-surface-2: #1b1614;
-  --nv-bg-surface-3: #221c18;
-  --nv-border-subtle: rgba(255, 255, 255, 0.05);
-  --nv-border-default: rgba(255, 255, 255, 0.1);
+  --nv-bg-base: #131110;
+  --nv-bg-surface-1: #1c1815;
+  --nv-bg-surface-2: #28211c;
+  --nv-bg-surface-3: #342b24;
+  --nv-panel-header-bg: #241e1a;
+  --nv-border-subtle: rgba(255, 255, 255, 0.08);
+  --nv-border-default: rgba(255, 255, 255, 0.14);
   --nv-border-emphasis: rgba(255, 255, 255, 0.2);
-  --nv-text-primary: #ede8e2;
-  --nv-text-secondary: #8c8278;
-  --nv-text-tertiary: #564e48;
-  --nv-text-inverse: #0f0d0c;
+  --nv-text-primary: #d4cfc8;
+  --nv-text-secondary: #a89e96;
+  --nv-text-tertiary: #7d7269;
+  --nv-text-inverse: #131110;
 
   /* Status */
   --nv-status-success: #3fb950;
@@ -290,11 +306,13 @@
   /* Semantic color aliases (warm-dark overrides) */
   --color-live: #3fb950;
   --color-error: #f85149;
-  --color-idle: #564e48;
+  --color-idle: #7d7269;
 
   /* Accent */
   --nv-accent: #d4824a;
+  --nv-accent-hover: #e09a66;
   --nv-accent-dim: rgba(212, 130, 74, 0.15);
+  --nv-accent-border: rgba(212, 130, 74, 0.34);
 
   /* Shadow Tokens */
   --nv-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -358,25 +376,25 @@
   }
 
   h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
+    font-size: var(--nv-text-2xl);
+    font-weight: 700;
     line-height: 1.5;
   }
 
   h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
+    font-size: var(--nv-text-xl);
+    font-weight: 650;
     line-height: 1.5;
   }
 
   h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
+    font-size: var(--nv-text-lg);
+    font-weight: 600;
     line-height: 1.5;
   }
 
   h4 {
-    font-size: var(--text-base);
+    font-size: var(--nv-text-base);
     font-weight: var(--font-weight-medium);
     line-height: 1.5;
   }
@@ -453,10 +471,18 @@
   }
 }
 
-/* NetVis focus ring — always TCP blue */
+/* NetVis focus ring */
 .nv-focus:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(78, 156, 232, 0.5);
+  box-shadow: 0 0 0 3px var(--nv-accent-dim);
+}
+
+.nv-titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.nv-titlebar-no-drag {
+  -webkit-app-region: no-drag;
 }
 
 /* Collapsible animations — applied via Radix data-state */

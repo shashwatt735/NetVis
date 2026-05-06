@@ -46,7 +46,7 @@ function Slider({
             'absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full'
           )}
           style={{
-            backgroundColor: 'var(--primary)'
+            backgroundColor: 'var(--nv-accent)'
           }}
         />
       </SliderPrimitive.Track>
@@ -56,17 +56,17 @@ function Slider({
           key={index}
           className="block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
           style={{
-            borderColor: 'var(--primary)',
+            borderColor: 'var(--nv-accent)',
             backgroundColor: 'var(--nv-bg-surface-1)'
           }}
           onFocus={(e) => {
-            e.currentTarget.style.boxShadow = '0 0 0 4px rgba(78, 156, 232, 0.5)'
+            e.currentTarget.style.boxShadow = '0 0 0 4px var(--nv-accent-dim)'
           }}
           onBlur={(e) => {
             e.currentTarget.style.boxShadow = 'var(--nv-shadow-sm)'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow = '0 0 0 4px rgba(78, 156, 232, 0.5)'
+            e.currentTarget.style.boxShadow = '0 0 0 4px var(--nv-accent-dim)'
           }}
           onMouseLeave={(e) => {
             if (document.activeElement !== e.currentTarget) {

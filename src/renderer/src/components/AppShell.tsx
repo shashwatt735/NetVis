@@ -6,6 +6,7 @@ import { SettingsPage } from './SettingsPage'
 import { SidebarNav } from './SidebarNav'
 import { StatusBar } from './StatusBar'
 import { Toolbar } from './Toolbar'
+import { AppTitleBar } from './AppTitleBar'
 import { OnboardingHints } from './OnboardingHints'
 import { useNetVisStore } from '../store'
 
@@ -41,6 +42,7 @@ export function AppShell(): React.JSX.Element {
         fontFamily: 'var(--font-ui)'
       }}
     >
+      <AppTitleBar />
       <Toolbar />
 
       <div

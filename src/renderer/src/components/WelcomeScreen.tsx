@@ -19,7 +19,7 @@ interface Step {
 const STEPS: Step[] = [
   {
     icon: Radio,
-    iconColor: 'var(--proto-tcp)',
+    iconColor: 'var(--nv-accent)',
     title: 'Welcome to NetVis',
     body: 'NetVis helps you understand how computers communicate by showing real network traffic in plain language. You do not need networking knowledge to get started.'
   },
@@ -167,7 +167,7 @@ export function WelcomeScreen({ onClose, triggerRef }: WelcomeScreenProps): Reac
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  backgroundColor: i === step ? 'var(--proto-tcp)' : 'var(--nv-border-default)',
+                  backgroundColor: i === step ? 'var(--nv-accent)' : 'var(--nv-border-default)',
                   transition: 'background-color 0.2s'
                 }}
               />
@@ -264,7 +264,11 @@ export function WelcomeScreen({ onClose, triggerRef }: WelcomeScreenProps): Reac
             aria-label={isLast ? 'Open NetVis' : 'Next step'}
             style={
               isLast
-                ? { backgroundColor: 'var(--proto-tcp)', border: 'none', color: '#fff' }
+                ? {
+                    backgroundColor: 'var(--nv-accent)',
+                    border: 'none',
+                    color: 'var(--nv-text-inverse)'
+                  }
                 : undefined
             }
           >

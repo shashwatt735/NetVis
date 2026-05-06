@@ -133,6 +133,10 @@ export function StatusBar(): React.JSX.Element {
             borderRadius: 999,
             backgroundColor: dotColor(captureStatus),
             boxShadow: captureStatus.state === 'active' ? '0 0 0 3px rgba(63, 185, 80, 0.12)' : undefined,
+            animation:
+              captureStatus.state === 'active'
+                ? 'nv-pulse var(--nv-duration-pulse) ease-in-out infinite'
+                : undefined,
             flexShrink: 0
           }}
         />

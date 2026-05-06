@@ -1,8 +1,10 @@
 import type React from 'react'
+import { X } from 'lucide-react'
 import { useNetVisStore } from '../store'
-import { CaptureToolbarActions, ReplaySpeedControl } from './CaptureToolbarActions'
+import { CaptureToolbarActions } from './CaptureToolbarActions'
 import { FilterBar } from './FilterBar'
 import { InterfaceSelector } from './InterfaceSelector'
+import { describeFilterExpression } from '../lib/packet-analysis'
 
 const PAGE_LABELS = {
   capture: 'Capture',
@@ -15,12 +17,103 @@ function CaptureToolbar(): React.JSX.Element {
   return (
     <>
       <CaptureToolbarActions />
-      <InterfaceSelector />
-      <div style={{ flex: 1, minWidth: 220, maxWidth: 560 }}>
+      <span
+        aria-hidden
+        style={{
+          width: 1,
+          height: 20,
+          backgroundColor: 'var(--nv-border-default)',
+          flexShrink: 0
+        }}
+      />
+      <div style={{ flexShrink: 0 }}>
+        <InterfaceSelector />
+      </div>
+      <ActiveFilterChip />
+      <div style={{ flex: '1 1 320px', minWidth: 180, maxWidth: 'none' }}>
         <FilterBar />
       </div>
-      <ReplaySpeedControl />
     </>
+  )
+}
+
+function ActiveFilterChip(): React.JSX.Element | null {
+  const packets = useNetVisStore((s) => s.packets)
+  const filteredPackets = useNetVisStore((s) => s.filteredPackets)
+  const filterExpression = useNetVisStore((s) => s.filterExpression)
+  const filterError = useNetVisStore((s) => s.filterError)
+  const setFilter = useNetVisStore((s) => s.setFilter)
+  const active = filterExpression.trim().length > 0
+
+  if (!active) return null
+
+  const filterLabel = describeFilterExpression(filterExpression)
+  const visibleCount = filterError ? packets.length : filteredPackets.length
+
+  return (
+    <div
+      role="status"
+      aria-label={`Active filter: ${filterLabel}`}
+      style={{
+        minWidth: 0,
+        maxWidth: 280,
+        height: 30,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 7,
+        padding: '0 7px 0 10px',
+        border: '1px solid var(--nv-accent-border)',
+        borderRadius: 'var(--nv-radius-md)',
+        backgroundColor: 'var(--nv-accent-dim)',
+        color: 'var(--nv-text-primary)',
+        flexShrink: 1
+      }}
+    >
+      <span
+        style={{
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: 12,
+          fontWeight: 650
+        }}
+      >
+        {filterLabel}
+      </span>
+      <span
+        style={{
+          color: 'var(--nv-text-secondary)',
+          fontFamily: 'var(--font-data)',
+          fontSize: 11,
+          whiteSpace: 'nowrap'
+        }}
+      >
+        {visibleCount.toLocaleString()}/{packets.length.toLocaleString()}
+      </span>
+      <button
+        type="button"
+        onClick={() => setFilter('')}
+        aria-label="Clear active filter"
+        className="nv-focus"
+        style={{
+          width: 18,
+          height: 18,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          border: 'none',
+          borderRadius: 'var(--nv-radius-sm)',
+          background: 'transparent',
+          color: 'var(--nv-text-tertiary)',
+          cursor: 'pointer',
+          padding: 0
+        }}
+      >
+        <X size={12} aria-hidden />
+      </button>
+    </div>
   )
 }
 
@@ -37,43 +130,16 @@ export function Toolbar(): React.JSX.Element {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        height: 44,
+        gap: 8,
+        height: 42,
         padding: '0 12px',
-        backgroundColor: 'var(--nv-bg-surface-1)',
+        backgroundColor: 'var(--nv-bg-base)',
         borderBottom: '1px solid var(--nv-border-default)',
         flexShrink: 0,
-        overflow: 'visible'
+        overflow: 'visible',
+        minWidth: 0
       }}
     >
-      <div
-        style={{
-          width: 118,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'baseline',
-          gap: 8
-        }}
-      >
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 700,
-            color: 'var(--nv-text-primary)',
-            letterSpacing: 0
-          }}
-        >
-          Net<span style={{ color: 'var(--proto-tcp)' }}>Vis</span>
-        </span>
-        <span
-          style={{
-            fontSize: 11,
-            color: 'var(--nv-text-tertiary)'
-          }}
-        >
-          {PAGE_LABELS[activePage]}
-        </span>
-      </div>
 
       {activePage === 'capture' ? (
         <CaptureToolbar />

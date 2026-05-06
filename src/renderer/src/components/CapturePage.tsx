@@ -1,7 +1,6 @@
 ﻿import type React from 'react'
 import { CircleDot, X } from 'lucide-react'
 import { getChallengeById } from '../data/challenges'
-import { describeFilterExpression } from '../lib/packet-analysis'
 import { useNetVisStore } from '../store'
 import { PacketDetailInspector } from './PacketDetailInspector'
 import { PacketFlowTimeline } from './PacketFlowTimeline'
@@ -29,7 +28,8 @@ function BentoPanel({
         overflow: 'hidden',
         backgroundColor: 'var(--nv-bg-surface-1)',
         border: '1px solid var(--nv-border-subtle)',
-        borderRadius: 'var(--nv-radius-lg)'
+        borderRadius: 'var(--nv-radius-lg)',
+        boxShadow: 'var(--nv-shadow-sm)'
       }}
     >
       <div
@@ -41,19 +41,18 @@ function BentoPanel({
           justifyContent: 'space-between',
           gap: 12,
           padding: '0 12px',
+          backgroundColor: 'var(--nv-panel-header-bg)',
           borderBottom: '1px solid var(--nv-border-subtle)'
         }}
       >
         <span
           style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
+            fontSize: 12,
+            fontWeight: 650,
             color: 'var(--nv-text-primary)'
           }}
         >
-          {label}
+          {titleCase(label)}
         </span>
         <span
           style={{
@@ -137,64 +136,6 @@ function ChallengeBanner(): React.JSX.Element | null {
   )
 }
 
-function ActiveFilterBanner(): React.JSX.Element | null {
-  const packets = useNetVisStore((s) => s.packets)
-  const filteredPackets = useNetVisStore((s) => s.filteredPackets)
-  const filterExpression = useNetVisStore((s) => s.filterExpression)
-  const filterError = useNetVisStore((s) => s.filterError)
-  const setFilter = useNetVisStore((s) => s.setFilter)
-  const active = filterExpression.trim().length > 0
-
-  if (!active) return null
-
-  const filterLabel = describeFilterExpression(filterExpression)
-  const visibleCount = filterError ? packets.length : filteredPackets.length
-
-  return (
-    <div
-      role="status"
-      aria-label={`Active filter: ${filterLabel}`}
-      style={{
-        minHeight: 34,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '0 12px',
-        border: '1px solid var(--nv-border-subtle)',
-        borderRadius: 'var(--nv-radius-lg)',
-        backgroundColor: 'var(--nv-bg-surface-1)',
-        color: 'var(--nv-text-primary)',
-        flexShrink: 0
-      }}
-    >
-      <span
-        style={{
-          minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          fontSize: 13
-        }}
-      >
-        Active filter: {filterLabel}
-      </span>
-      <span style={{ color: 'var(--nv-text-tertiary)', fontSize: 12, whiteSpace: 'nowrap' }}>
-        Showing {visibleCount.toLocaleString()} of {packets.length.toLocaleString()} packets
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => setFilter('')}
-        aria-label="Clear active filter"
-        style={{ marginLeft: 'auto', width: 28, height: 28, padding: 0 }}
-      >
-        <X size={14} aria-hidden />
-      </Button>
-    </div>
-  )
-}
-
 export function CapturePage(): React.JSX.Element {
   return (
     <div
@@ -222,7 +163,6 @@ export function CapturePage(): React.JSX.Element {
         }}
       >
         <ChallengeBanner />
-        <ActiveFilterBanner />
         <BentoPanel label="packets" framing="what happened, in order?">
           <PacketList />
         </BentoPanel>
@@ -239,7 +179,8 @@ export function CapturePage(): React.JSX.Element {
           overflow: 'hidden',
           backgroundColor: 'var(--nv-bg-surface-1)',
           border: '1px solid var(--nv-border-subtle)',
-          borderRadius: 'var(--nv-radius-lg)'
+          borderRadius: 'var(--nv-radius-lg)',
+          boxShadow: 'var(--nv-shadow-sm)'
         }}
       >
         <PacketDetailInspector />

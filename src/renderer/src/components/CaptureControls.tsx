@@ -1,4 +1,4 @@
-import { FastForward, FileDown, FileUp, Play, Square } from 'lucide-react'
+import { CircleStop, FastForward, FileDown, FileUp, Play } from 'lucide-react'
 import { useState } from 'react'
 import type React from 'react'
 import type { SpeedMultiplier } from '../../../shared/capture-types'
@@ -256,8 +256,8 @@ export function CaptureControls(): React.JSX.Element {
             className="px-3"
             style={{
               ...controlButtonBaseStyle,
-              backgroundColor: 'var(--proto-tcp)',
-              color: '#fff',
+              backgroundColor: 'var(--nv-accent)',
+              color: 'var(--nv-text-inverse)',
               border: 'none'
             }}
           >
@@ -420,7 +420,7 @@ export function CaptureControls(): React.JSX.Element {
             className="px-3"
             style={controlButtonBaseStyle}
           >
-            <Square size={13} aria-hidden />
+            <CircleStop size={14} aria-hidden />
             {pendingAction === 'stop' ? 'Stopping...' : 'Stop'}
           </Button>
 

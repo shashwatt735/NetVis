@@ -104,6 +104,7 @@ export interface MockElectronAPI {
   setBufferCapacity: ReturnType<typeof vi.fn>
   getSettings: ReturnType<typeof vi.fn>
   setSettings: ReturnType<typeof vi.fn>
+  setTitleBarTheme: ReturnType<typeof vi.fn>
   openLogFolder: ReturnType<typeof vi.fn>
   onPacketBatch: ReturnType<typeof vi.fn>
   onCaptureStatus: ReturnType<typeof vi.fn>
@@ -149,6 +150,7 @@ export function mockElectronAPI(overrides: Partial<MockElectronAPI> = {}): MockE
       ...defaultSettings,
       ...patch
     })),
+    setTitleBarTheme: vi.fn().mockResolvedValue(undefined),
     openLogFolder: vi.fn().mockResolvedValue(undefined),
     // Push-channel listeners return a no-op unsubscribe function
     onPacketBatch: vi.fn().mockReturnValue(() => {}),

@@ -37,6 +37,13 @@ function protocolToken(packet: AnonPacket): { color: string; dim: string; border
   return PROTOCOL_COLORS[protocolColorKey(packet.protocol)]
 }
 
+function protocolActionLabel(title: string, protocol: string): string {
+  const normalizedTitle = title.toLowerCase()
+  const normalizedProtocol = protocol.toLowerCase()
+  if (!normalizedTitle.startsWith(normalizedProtocol)) return title
+  return title.slice(protocol.length).trim() || 'packet'
+}
+
 function ByteStructurePanel({
   packet,
   hoveredField
@@ -102,14 +109,14 @@ function ByteStructurePanel({
                   alignItems: 'center',
                   padding: '3px 5px',
                   borderRadius: 'var(--nv-radius-sm)',
-                  backgroundColor: highlighted ? 'rgba(78,156,232,0.18)' : 'transparent'
+                  backgroundColor: highlighted ? 'var(--nv-accent-dim)' : 'transparent'
                 }}
               >
                 <span
                   style={{
                     fontFamily: 'var(--font-data)',
                     fontSize: 10,
-                    color: highlighted ? 'var(--proto-tcp)' : 'var(--nv-text-tertiary)'
+                    color: highlighted ? 'var(--nv-accent)' : 'var(--nv-text-tertiary)'
                   }}
                 >
                   {range.start === range.end
@@ -179,10 +186,10 @@ function FieldRow({
         display: 'grid',
         gridTemplateColumns: 'minmax(104px, 0.75fr) minmax(0, 1fr)',
         gap: 10,
-        padding: '7px 14px',
+        padding: '7px 14px 7px 10px',
+        borderLeft: isPriority ? '4px solid var(--nv-accent)' : '4px solid transparent',
         borderBottom: '1px solid var(--nv-border-subtle)',
         backgroundColor: 'var(--nv-bg-surface-1)',
-        opacity: isPriority ? 1 : 0.68,
         outline: 'none'
       }}
     >
@@ -212,7 +219,7 @@ function FieldRow({
         {help && (
           <span
             style={{
-              color: 'var(--nv-text-tertiary)',
+              color: 'var(--nv-text-secondary)',
               fontFamily: 'var(--font-ui)',
               fontSize: 11,
               lineHeight: 1.35,
@@ -415,8 +422,8 @@ function WelcomeState(): React.JSX.Element {
           width: 28,
           height: 28,
           borderRadius: 6,
-          backgroundColor: 'var(--proto-tcp)',
-          color: '#fff',
+          backgroundColor: 'var(--nv-accent)',
+          color: 'var(--nv-text-inverse)',
           display: 'grid',
           placeItems: 'center',
           fontWeight: 700
@@ -492,7 +499,7 @@ function RunningState({ packets }: { packets: AnonPacket[] }): React.JSX.Element
           padding: '12px',
           border: '1px solid var(--nv-border-subtle)',
           borderRadius: 'var(--nv-radius-md)',
-          backgroundColor: 'var(--nv-bg-surface-2)'
+          backgroundColor: 'var(--nv-panel-header-bg)'
         }}
       >
         <h3 style={{ margin: 0, fontSize: 14 }}>What happened?</h3>
@@ -707,7 +714,7 @@ function SelectedPacketState({ packet }: { packet: AnonPacket }): React.JSX.Elem
   const token = protocolToken(packet)
   const summary = summarizePacket(packet)
   const roleInfo = getPacketRoleInfo(packet)
-  const role: string | null = null
+  const actionLabel = protocolActionLabel(summary.title, packet.protocol)
 
   return (
     <div
@@ -728,14 +735,52 @@ function SelectedPacketState({ packet }: { packet: AnonPacket }): React.JSX.Elem
         <div style={{ minWidth: 0 }}>
           <div
             style={{
-              color: token.color,
-              fontFamily: 'var(--font-data)',
-              fontSize: 11,
-              fontWeight: 700
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              minWidth: 0
             }}
           >
-            {summary.title}
-            {role ? ` · ${role}` : ''}
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                flexShrink: 0,
+                padding: '2px 7px',
+                borderRadius: 'var(--nv-radius-md)',
+                border: `1px solid ${token.border}`,
+                backgroundColor: token.dim,
+                color: token.color,
+                fontFamily: 'var(--font-data)',
+                fontSize: 11,
+                fontWeight: 700
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: 999,
+                  backgroundColor: token.color
+                }}
+              />
+              {packet.protocol}
+            </span>
+            <span
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: 'var(--nv-text-primary)',
+                fontSize: 13,
+                fontWeight: 700
+              }}
+            >
+              {actionLabel}
+            </span>
           </div>
           <p style={{ margin: '6px 0 8px', color: 'var(--nv-text-primary)', lineHeight: 1.5 }}>
             {summary.summary}
@@ -872,7 +917,7 @@ export function PacketDetailInspector(): React.JSX.Element {
           gap: 8,
           padding: '0 12px',
           borderBottom: '1px solid var(--nv-border-subtle)',
-          backgroundColor: 'var(--nv-bg-surface-2)'
+          backgroundColor: 'var(--nv-panel-header-bg)'
         }}
       >
         <span

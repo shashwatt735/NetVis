@@ -3,10 +3,11 @@
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CapturePage } from '../../renderer/src/components/CapturePage'
+import { Toolbar } from '../../renderer/src/components/Toolbar'
 import { PacketDetailInspector } from '../../renderer/src/components/PacketDetailInspector'
 import { formatFieldValue } from '../../renderer/src/lib/field-help'
 import { formatRelativeTimestamp, getPacketRoleInfo } from '../../renderer/src/lib/packet-analysis'
-import { makeAnonPacket, renderWithStore, resetStore, screen, useNetVisStore } from './test-utils'
+import { makeAnonPacket, renderWithStore, resetStore, mockElectronAPI, screen, useNetVisStore } from './test-utils'
 import type { AnonPacket, ParsedLayer } from '../../shared/capture-types'
 
 class ResizeObserverMock {
@@ -84,6 +85,7 @@ function dnsLayer(flags: string): ParsedLayer {
 describe('Phase 1 educational enrichment', () => {
   beforeEach(() => {
     resetStore()
+    mockElectronAPI()
     vi.clearAllMocks()
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
   })
@@ -141,7 +143,9 @@ describe('Phase 1 educational enrichment', () => {
 
     renderWithStore(<PacketDetailInspector />)
 
-    expect(screen.getByText('TCP SYN')).toBeInTheDocument()
+    // 'TCP' and 'SYN' each appear in multiple elements (protocol badge + layer header,
+    // action label + flags field value), so we assert on the unique summary text instead.
+    expect(screen.getByText(/Connection start\. A device is asking to open a TCP connection/)).toBeInTheDocument()
     expect(screen.getByText(/Why it matters:/)).toBeInTheDocument()
     expect(screen.getByLabelText('Protocol: 6 - TCP')).toBeInTheDocument()
     expect(screen.getByText(/Identifies the transport-layer protocol/)).toBeInTheDocument()
@@ -160,11 +164,11 @@ describe('Phase 1 educational enrichment', () => {
       filterExpression: 'proto == DNS'
     })
 
-    renderWithStore(<CapturePage />)
+    renderWithStore(<Toolbar />)
 
     expect(
       screen.getByRole('status', { name: 'Active filter: Protocol = DNS' })
     ).toBeInTheDocument()
-    expect(screen.getByText('Showing 1 of 2 packets')).toBeInTheDocument()
+    expect(screen.getByText('1/2')).toBeInTheDocument()
   })
 })

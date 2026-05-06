@@ -10,7 +10,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90',
+          'border-[var(--nv-accent)] bg-[var(--nv-accent)] text-[var(--nv-text-inverse)] hover:border-[var(--nv-accent-hover)] hover:bg-[var(--nv-accent-hover)]',
         destructive:
           'border-[var(--destructive)] bg-[var(--destructive)] text-[var(--destructive-foreground)] hover:opacity-90',
         outline:
@@ -19,7 +19,8 @@ const buttonVariants = cva(
           'border-[var(--nv-border-subtle)] bg-[var(--nv-bg-surface-2)] text-[var(--nv-text-primary)] hover:bg-[var(--nv-bg-surface-3)]',
         ghost:
           'border-transparent bg-transparent text-[var(--nv-text-secondary)] hover:bg-[var(--nv-bg-surface-2)] hover:text-[var(--nv-text-primary)]',
-        link: 'border-transparent bg-transparent text-[var(--primary)] underline-offset-4 hover:underline'
+        link:
+          'border-transparent bg-transparent text-[var(--nv-accent)] underline-offset-4 hover:text-[var(--nv-accent-hover)] hover:underline'
       },
       size: {
         default: '',

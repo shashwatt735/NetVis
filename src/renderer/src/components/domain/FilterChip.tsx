@@ -20,12 +20,12 @@ export function FilterChip({ label, onRemove }: FilterChipProps): React.JSX.Elem
                 gap: 'var(--nv-space-1)',
                 padding: 'var(--nv-space-1) var(--nv-space-1) var(--nv-space-1) var(--nv-space-3)',
                 borderRadius: '9999px',
-                background: 'var(--proto-tcp-dim)',
-                border: '1px solid var(--proto-tcp-border)',
+                background: 'var(--nv-accent-dim)',
+                border: '1px solid var(--nv-accent-border)',
                 fontFamily: 'var(--font-data)',
                 fontSize: 'var(--nv-text-label)',
                 fontWeight: 700,
-                color: 'var(--proto-tcp)'
+                color: 'var(--nv-accent)'
             }}
         >
             <Filter size={10} aria-hidden="true" />
@@ -43,10 +43,10 @@ export function FilterChip({ label, onRemove }: FilterChipProps): React.JSX.Elem
                         height: 24,
                         borderRadius: '50%',
                         marginLeft: 'var(--nv-space-1)',
-                        background: 'rgba(78,156,232,0.15)',
+                        background: 'var(--nv-accent-dim)',
                         border: 'none',
                         cursor: 'pointer',
-                        color: 'var(--proto-tcp)',
+                        color: 'var(--nv-accent)',
                         flexShrink: 0
                     }}
                 >
