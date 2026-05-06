@@ -9,6 +9,7 @@ import type {
   BufferStats,
   CaptureStatus,
   NetworkInterface,
+  ResolvedTheme,
   Theme
 } from '../../../shared/capture-types'
 
@@ -357,21 +358,33 @@ export const useNetVisStore = create<NetVisStore>((set, get) => ({
 
 // ─── Theme Application ───────────────────────────────────────────────────────
 
+function systemResolvedTheme(): ResolvedTheme {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function resolveTheme(theme: Theme): ResolvedTheme {
+  return theme === 'system' ? systemResolvedTheme() : theme
+}
+
+function syncTitleBarTheme(theme: ResolvedTheme): void {
+  void window.electronAPI?.setTitleBarTheme?.(theme).catch((err: unknown) => {
+    console.error('Failed to update title bar theme:', err)
+  })
+}
+
 function applyTheme(theme: Theme): void {
   const root = document.documentElement
+  const resolvedTheme = resolveTheme(theme)
 
   root.classList.remove('dark', 'warm-dark')
 
-  if (theme === 'dark') {
+  if (resolvedTheme === 'dark') {
     root.classList.add('dark')
-  } else if (theme === 'warm-dark') {
+  } else if (resolvedTheme === 'warm-dark') {
     root.classList.add('warm-dark')
-  } else if (theme === 'system') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    if (prefersDark) {
-      root.classList.add('dark')
-    }
   }
+
+  syncTitleBarTheme(resolvedTheme)
 
   // Cache theme for flash-free startup (read by inline script in index.html)
   try {
@@ -392,19 +405,13 @@ export function initializeTheme(): () => void {
   const mq = window.matchMedia('(prefers-color-scheme: dark)')
 
   // Apply immediately
-  applyTheme(
-    useNetVisStore.getState().theme === 'system'
-      ? mq.matches
-        ? 'dark'
-        : 'light'
-      : useNetVisStore.getState().theme
-  )
+  applyTheme(useNetVisStore.getState().theme)
 
   // Live listener — only acts when store theme is 'system'
-  const handleChange = (e: MediaQueryListEvent): void => {
+  const handleChange = (_e: MediaQueryListEvent): void => {
     const { theme } = useNetVisStore.getState()
     if (theme === 'system') {
-      applyTheme(e.matches ? 'dark' : 'light')
+      applyTheme(theme)
     }
   }
 

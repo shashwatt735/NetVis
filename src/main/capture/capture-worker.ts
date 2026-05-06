@@ -9,7 +9,6 @@ import type { InterfaceResult } from '../../shared/ipc-types'
 import { CaptureController } from './capture-controller'
 import { mapError } from './errors'
 import { Parser } from '../parser'
-import { ensureNpcapDllPath } from './npcap-path'
 
 // Wrap entire worker in try-catch to capture startup errors
 try {
@@ -25,60 +24,6 @@ try {
 
   function send(msg: WorkerOutMessageExtended): void {
     parentPort!.postMessage(msg)
-  }
-
-  function mapInterfaceEnumerationError(err: unknown): Extract<InterfaceResult, { ok: false }> {
-    const error = err instanceof Error ? err : new Error(String(err))
-    const msg = error.message.toLowerCase()
-    const code =
-      (error as NodeJS.ErrnoException).code === 'EACCES' ||
-      msg.includes('permission') ||
-      msg.includes('access denied') ||
-      msg.includes('npcap users') ||
-      msg.includes('administrator')
-        ? 'PERMISSION_DENIED'
-        : msg.includes('cannot find module') ||
-            msg.includes('module not found') ||
-            msg.includes('npcap') ||
-            msg.includes('libpcap')
-          ? 'LIBRARY_UNAVAILABLE'
-          : 'LIBRARY_UNAVAILABLE'
-    const mapped = mapError(error, code)
-
-    return {
-      ok: false,
-      error: mapped.message,
-      platformHint: mapped.platformHint,
-      diagnostic: error.stack ?? error.message
-    }
-  }
-
-  function getInterfaces(): InterfaceResult {
-    try {
-      ensureNpcapDllPath()
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-      const { Cap } = require('cap') as { Cap: any }
-      // Cap.deviceList() is a static method
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const devices = Cap.deviceList() as Array<{
-        name: string
-        description?: string
-        flags?: number
-        addresses?: Array<{ addr?: string }>
-      }>
-      return {
-        ok: true,
-        interfaces: devices.map((d) => ({
-          name: d.name,
-          displayName: d.description?.trim() || d.name,
-          isUp: true // cap doesn't expose up/down; default to true
-        }))
-      }
-    } catch (err) {
-      const result = mapInterfaceEnumerationError(err)
-      console.error('[Worker] Failed to enumerate interfaces:', result.error)
-      return result
-    }
   }
 
   // ARCH-04: Worker sends ParsedPacket (with rawData). Anonymization happens
@@ -106,9 +51,16 @@ try {
   parentPort.on('message', (msg: WorkerInMessageExtended) => {
     switch (msg.type) {
       case 'get-interfaces':
-        // getInterfaces is now handled on the main thread — this case is kept
-        // for backward compatibility but should not be called in normal operation.
-        send({ type: 'interfaces', result: getInterfaces() })
+        // Interface enumeration is handled by the main process, not the capture worker.
+        // This case is kept for backward compatibility but should not be called.
+        send({
+          type: 'interfaces',
+          result: {
+            ok: false,
+            reason: 'LOAD_FAILED',
+            error: 'Interface enumeration is handled by the main process, not the capture worker.'
+          }
+        })
         break
 
       case 'start-live':

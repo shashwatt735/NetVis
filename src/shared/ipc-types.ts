@@ -8,16 +8,26 @@ import type {
   BufferStats,
   ImportResult,
   ExportResult,
+  ResolvedTheme,
   Settings,
   SpeedMultiplier
 } from './capture-types'
 
 export type Unsubscribe = () => void
 
+// Structured reason for native capture unavailability — lets the renderer
+// show precise messages instead of generic failure text.
+export type NativeCaptureUnavailableReason =
+  | 'CAP_NOT_INSTALLED'
+  | 'NPCAP_MISSING'
+  | 'LOAD_FAILED'
+  | 'PERMISSION_DENIED'
+  | 'NO_INTERFACES'
+
 // BUGFIX-05: structured result distinguishes enumeration failure from empty list
 export type InterfaceResult =
   | { ok: true; interfaces: NetworkInterface[] }
-  | { ok: false; error: string; platformHint?: string; diagnostic?: string }
+  | { ok: false; reason?: NativeCaptureUnavailableReason; error: string; platformHint?: string; diagnostic?: string }
 
 /**
  * ElectronAPI — the complete IPC contract exposed to the renderer via contextBridge.
@@ -48,6 +58,7 @@ export interface ElectronAPI {
   // ─── Settings (invoke) ──────────────────────────────────────────────────────
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): Promise<Settings>
+  setTitleBarTheme(theme: ResolvedTheme): Promise<void>
 
   // ─── Logging (invoke) ───────────────────────────────────────────────────────
   openLogFolder(): Promise<void>

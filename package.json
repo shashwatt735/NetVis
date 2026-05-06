@@ -1,6 +1,11 @@
 {
   "name": "netvis",
   "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.19.0 <25",
+    "npm": ">=10 <12"
+  },
   "description": "Educational network packet visualizer",
   "main": "./out/main/index.js",
   "author": "Shashwat Maurya",
@@ -21,11 +26,19 @@
     "build": "npm run typecheck && electron-vite build",
     "build:staging": "npm run typecheck && electron-vite build --mode staging",
     "build:prod": "npm run typecheck && electron-vite build --mode production",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "node scripts/postinstall.mjs",
+    "rebuild:native": "electron-builder install-app-deps",
+    "verify:native": "node scripts/verify-native.mjs",
+    "doctor": "node scripts/doctor-env.mjs",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
+    "build:win:native": "npm run verify:native && npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:linux": "npm run build && electron-builder --linux",
+    "verify:core": "npm run typecheck && npm test",
+    "verify:build": "npm run typecheck && npm run build",
+    "install:native": "npm install --include=optional",
+    "setup:native": "npm run install:native && npm run rebuild:native && npm run verify:native"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -51,11 +64,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "@tailwindcss/forms": "^0.5.11",
     "@tanstack/react-virtual": "^3.13.23",
-    "@types/d3": "^7.4.3",
-    "autoprefixer": "^10.4.27",
-    "cap": "^0.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "d3": "^7.9.0",
@@ -64,22 +73,26 @@
     "pcap-parser": "^0.2.1",
     "pino": "^10.3.1",
     "pino-roll": "^4.0.0",
-    "postcss": "^8.5.8",
     "recharts": "^3.8.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "zod": "^3.23.0",
     "zustand": "^5.0.12"
   },
+  "optionalDependencies": {
+    "cap": "^0.2.1"
+  },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/vite": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/jsdom": "^28.0.1",
+    "@types/d3": "^7.4.3",
     "@types/node": "^22.19.1",
     "@types/pino": "^7.0.4",
     "@types/react": "^19.2.7",
@@ -101,6 +114,8 @@
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.8",
     "vitest": "^4.1.2"
   }
 }

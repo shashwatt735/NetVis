@@ -12,6 +12,7 @@ import { Logger } from './logger'
 import { getSettingsStore } from './settings-store'
 import { getPacketBuffer } from './packet-buffer'
 import { getCaptureEngine } from './capture'
+import { applyTitleBarTheme } from './window-theme'
 import { Parser } from './parser'
 import { Anonymizer } from './anonymizer'
 import {
@@ -21,7 +22,8 @@ import {
   PcapStartFileSchema,
   BufferSetCapacitySchema,
   SettingsPatchSchema,
-  FilterApplySchema
+  FilterApplySchema,
+  WindowTitleBarThemeSchema
 } from './ipc-schemas'
 import type {
   AnonPacket,
@@ -561,6 +563,21 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
       return store.get()
     } catch (err) {
       Logger.error('IPC', 'settings:set failed', {
+        error: err instanceof Error ? err.message : String(err)
+      })
+      throw err
+    }
+  })
+
+  // ─── Window chrome ──────────────────────────────────────────────────────────
+
+  ipcMain.handle('window:setTitleBarTheme', async (_event, payload: unknown): Promise<void> => {
+    try {
+      const { theme } = validateOrThrow(WindowTitleBarThemeSchema, payload)
+      Logger.debug('IPC', 'window:setTitleBarTheme invoked', { theme })
+      applyTitleBarTheme(getWindow(), theme)
+    } catch (err) {
+      Logger.error('IPC', 'window:setTitleBarTheme failed', {
         error: err instanceof Error ? err.message : String(err)
       })
       throw err

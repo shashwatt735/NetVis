@@ -47,6 +47,11 @@ export const SettingsPatchSchema = z
   })
   .strict()
 
+// --- Window chrome ---
+export const WindowTitleBarThemeSchema = z.object({
+  theme: z.enum(['light', 'dark', 'warm-dark'])
+})
+
 // Helper: parse and throw a structured error on failure
 export function validateOrThrow<T>(schema: z.ZodType<T>, data: unknown): T {
   const result = schema.safeParse(data)

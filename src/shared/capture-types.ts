@@ -10,6 +10,7 @@ export type ProtocolName = 'TCP' | 'UDP' | 'ICMP' | 'DNS' | 'ARP' | 'IPv4' | 'IP
 export type SpeedMultiplier = 0.5 | 1 | 2 | 5
 
 export type Theme = 'light' | 'dark' | 'warm-dark' | 'system'
+export type ResolvedTheme = Exclude<Theme, 'system'>
 
 // ─── Raw packet (out of PacketSource, into Parser) ───────────────────────────
 

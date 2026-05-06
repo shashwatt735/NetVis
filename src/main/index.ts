@@ -8,6 +8,7 @@ import { initPacketBuffer } from './packet-buffer'
 import { initCaptureEngine } from './capture'
 import { registerIpcHandlers } from './ipc-handlers'
 import { createBufferStatsThrottler } from './buffer-stats-throttler'
+import { resolveTitleBarTheme, titleBarWindowOptions } from './window-theme'
 import type { BufferStats } from '../shared/capture-types'
 
 // Dev-only cache mitigation for Chromium disk-cache corruption on local profiles.
@@ -23,6 +24,7 @@ let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   Logger.debug('App', 'Creating main window')
+  const titleBarTheme = resolveTitleBarTheme(getSettingsStore().get().theme)
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -31,6 +33,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    ...titleBarWindowOptions(titleBarTheme),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

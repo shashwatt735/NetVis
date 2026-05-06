@@ -44,3 +44,8 @@ repomix-output.xml
 !docs/TROUBLESHOOTING.md
 !docs/CODE_INDEX.md
 !docs/CODEBASE_AUDIT_REPORT.md
+
+# One-off diagnostic and build artifacts
+query
+files.zip
+repomix-output.xml

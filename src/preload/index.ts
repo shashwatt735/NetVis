@@ -4,6 +4,7 @@ import type {
   AnonPacket,
   CaptureStatus,
   BufferStats,
+  ResolvedTheme,
   Settings,
   SpeedMultiplier
 } from '../shared/capture-types'
@@ -37,6 +38,8 @@ const electronAPI: ElectronAPI = {
   // ─── Settings (invoke) ──────────────────────────────────────────────────────
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch: Partial<Settings>) => ipcRenderer.invoke('settings:set', patch),
+  setTitleBarTheme: (theme: ResolvedTheme) =>
+    ipcRenderer.invoke('window:setTitleBarTheme', { theme }),
 
   // ─── Logging (invoke) ───────────────────────────────────────────────────────
   openLogFolder: () => ipcRenderer.invoke('log:openFolder'),

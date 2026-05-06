@@ -42,78 +42,91 @@ See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the implementation stat
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)   | Live capture, interface, import, and visualization troubleshooting.                     |
 | [docs/CODE_INDEX.md](docs/CODE_INDEX.md)             | Module inventory and test index.                                                        |
 
-## Requirements
+## Installation for Users
 
-- Node.js 22 or newer.
-- npm 9 or newer.
-- Platform packet-capture support for live capture:
-  - Windows: Npcap.
-  - Linux: libpcap and capture capabilities.
-  - macOS: built-in libpcap plus appropriate capture permissions.
+Packaged NetVis users do not need Node.js, npm, Python, Visual Studio Build Tools, or Windows SDK.
 
-File import and simulated replay do not require elevated packet-capture permissions.
+Npcap is required only for live packet capture on Windows. PCAP import, replay, learning pages, and visualizations work without Npcap.
 
-## Windows Live Capture Setup
+## Core Development Setup
 
-1. Install [Npcap](https://npcap.com/).
-2. During installation, enable WinPcap API-compatible mode.
-3. Prefer adding your user to the `Npcap Users` group.
-4. Log out and back in after changing group membership.
-5. As a fallback, run NetVis as Administrator.
+Core development includes the renderer UI, parser, PCAP import, replay, learning pages, visualizations, and tests that do not require native live capture.
 
-If live capture is unavailable, NetVis shows a platform-specific error and PCAP import remains available.
+Required:
 
-## Linux Live Capture Setup
-
-Install libpcap:
+- Node.js version from `.nvmrc` (22.x recommended)
+- npm 10 or 11
 
 ```bash
-sudo apt-get install libpcap-dev
-```
-
-For packaged builds, prefer granting capture capabilities to the app binary instead of running as root:
-
-```bash
-sudo setcap cap_net_raw,cap_net_admin=eip /path/to/netvis
-```
-
-## macOS Live Capture Setup
-
-macOS includes libpcap. Depending on the environment, live capture may require one of:
-
-- Starting the app from a privileged terminal.
-- Granting the terminal or app additional privacy permissions.
-- Adjusting `/dev/bpf*` permissions for the current boot.
-
-## Development
-
-Install dependencies:
-
-```bash
+nvm use
 npm install
-```
-
-Run the app in development mode:
-
-```bash
 npm run dev
 ```
 
-Run verification:
+Run core verification:
 
 ```bash
-npm test
-npm run typecheck
-npm run lint
+npm run verify:core
 ```
 
-Build:
+## Live Capture Development
+
+Live capture uses the optional `cap` native module. Core development works without it — the app gracefully disables live capture when `cap` is unavailable.
+
+### Windows live-capture requirements
+
+- Python 3.11 or 3.12
+- Visual Studio Build Tools 2019 or 2022 with:
+  - Desktop development with C++
+  - MSVC v142 or v143 x64/x86 build tools
+  - Windows 10 or Windows 11 SDK
+- [Npcap](https://npcap.com/) with WinPcap API-compatible mode enabled
+
+### Linux live-capture requirements
+
+- `libpcap-dev` (`sudo apt-get install libpcap-dev`)
+- Capture capabilities: `sudo setcap cap_net_raw,cap_net_admin=eip /path/to/netvis`
+
+### macOS live-capture requirements
+
+- macOS includes libpcap. Depending on the environment, live capture may require starting the app from a privileged terminal or granting additional privacy permissions.
+
+### Setting up live capture
+
+After installing the platform prerequisites above:
 
 ```bash
-npm run build
-npm run build:win
-npm run build:mac
-npm run build:linux
+npm run setup:native
+```
+
+Check your environment:
+
+```bash
+npm run doctor
+npm run verify:native
+```
+
+## Development Commands
+
+```bash
+npm run dev              # Run in development mode
+npm run verify:core      # Typecheck + tests
+npm run verify:build     # Typecheck + production build
+npm run lint             # Lint
+npm run doctor           # Environment health check
+npm run setup:native     # Full live capture setup (install + rebuild + verify)
+npm run rebuild:native   # Rebuild native addons for Electron
+npm run verify:native    # Verify native addons are ready for packaging
+```
+
+## Build
+
+```bash
+npm run build            # Production build
+npm run build:win        # Package for Windows
+npm run build:win:native # Verify native + package for Windows
+npm run build:mac        # Package for macOS
+npm run build:linux      # Package for Linux
 ```
 
 ## Architecture Summary
@@ -160,12 +173,24 @@ This detection is local to the machine. NetVis does not transmit interface ident
 - Raw local interface addresses are not displayed by default.
 - Logs avoid packet payload content.
 
+## Troubleshooting
+
+If live capture is not working:
+
+```bash
+npm run doctor
+```
+
+This reports the state of your Node.js, npm, Python, Visual Studio Build Tools, Windows SDK, Npcap, and whether the `cap` module loaded successfully.
+
+For detailed troubleshooting steps, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
 ## Contributing
 
 Before changing behavior, read:
 
 1. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-2. [.kiro/specs/netvis-core/design.md](.kiro/specs/netvis-core/design.md)
+2. [docs/PROJECT_DESIGN.md](docs/PROJECT_DESIGN.md)
 3. [docs/CODE_INDEX.md](docs/CODE_INDEX.md)
 
 Keep changes aligned with the architecture invariants, add or update focused tests for behavioral changes, and run typecheck plus the relevant test slice before handing off.

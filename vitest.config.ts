@@ -6,7 +6,7 @@ export default defineConfig({
     include: ['src/__tests__/**/*.{test,spec}.{ts,tsx}'],
     setupFiles: ['src/__tests__/renderer/setup.ts'],
     testTimeout: 30000,
-    pool: 'threads',
+    pool: 'forks',
     maxWorkers: 1,
     minWorkers: 1,
     environmentMatchGlobs: [
